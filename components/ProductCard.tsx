@@ -17,7 +17,7 @@ export default function ProductCard({ product }: Props) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={image} alt={product.title} className="h-full w-full object-cover" />
         <span className="absolute left-2 top-2 rounded-full bg-navy px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-          {product.condition}
+          {(product as any).condition}
         </span>
       </div>
       <div className="space-y-1.5 p-3">
