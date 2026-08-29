@@ -15,7 +15,7 @@ export function formatWhatsapp(phone: string) {
 export function getWhatsappLink(phone: string, productName?: string) {
   const formatted = formatWhatsapp(phone);
   const msg = productName
-    ? `Hi, I am interested in your ${productName} on KSOM.Is it still available ?`
+    ? `Hi, I am interested in your ${productName} on KSOM. Is it still available ?`
     : "Hi, I am interested in your item on KSOM.";
   return `https://wa.me/${formatted}?text=${encodeURIComponent(msg)}`;
 }
@@ -24,7 +24,9 @@ export function productWhatsappUrl(product: any) {
   return getWhatsappLink(product?.profiles?.whatsapp || product?.whatsapp || "", product?.title);
 }
 
+export const productWhatsAppUrl = productWhatsappUrl;
+
 // Aliases so ANY name works
 export const productWhatsappLink = productWhatsappUrl;
-export const getWhatsappUrl = getWhatsappLink;
-export const formatGHS = formatGhs;
+export const productWhatsAppLink = productWhatsappUrl;
+
