@@ -76,8 +76,7 @@ export default function SellPage() {
 
         <button onClick={submit} disabled={loading} className="w-full bg-black text-white rounded-full py-3.5 text-sm font-bold mt-2">{loading ? "Posting..." : "Post to KSOM"}</button>
 
-        <p className="text-[11px] opacity-50 mt-4">First time? Go to Supabase > Storage > New Bucket > Name: product-images > Make it Public > Save. Then upload will work forever.</p>
-        <p className="text-[11px] opacity-50 mt-2">Also run in Supabase SQL: <code>alter table products add column if not exists seller_name text;</code></p>
+
       </div>
     </div>
   );
