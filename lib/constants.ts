@@ -11,11 +11,17 @@ export const CATEGORIES = [
   "Other"
 ];
 
-export const KNUST_LOCATIONS = [
+export const LOCATIONS = [
+  "All",
   "Ayeduase",
   "Kotei",
   "Boadi",
   "Campus",
   "Tech Junction",
-  "Kentinkrono"
+  "Kentinkrono",
+  "Ahodwo",
+  "Santasi"
 ];
+
+// Keep both names so nothing breaks
+export const KNUST_LOCATIONS = LOCATIONS;
