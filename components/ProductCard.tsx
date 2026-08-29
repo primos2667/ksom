@@ -8,7 +8,7 @@ type Props = {
 };
 
 export default function ProductCard({ product }: Props) {
-  const whatsapp = productWhatsAppUrl(product.title, product.profiles?.whatsapp_number);
+  const whatsapp = productWhatsAppUrl(product.title, product.profiles?.whatsapp);
   const image = product.image_url || "/placeholder-product.svg";
 
   return (
