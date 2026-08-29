@@ -77,7 +77,7 @@ export default function HomeFinal() {
     <div className={`${isDark ? "bg-[#0f0f0f] text-[#f5f3ef]" : "bg-[#fbfaf8] text-[#121212]"} min-h-screen pb-28 transition-colors`}>
       <div className={`sticky top-0 z-20 backdrop-blur-xl border-b ${isDark ? "bg-[#0f0f0f]/90 border-white/10" : "bg-[#fbfaf8]/90 border-black/10"}`}>
         <div className="px-5 h-14 flex justify-between items-center">
-          <div className="flex items-center gap-2.5"><div className={`w-8 h-8 rounded-full grid place-items-center text-[10px] font-bold ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>KN</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div>
+          <div className="flex items-center gap-2.5"><img src="public/knust-logo.png" className="w-6 h-6 object-contain"></img><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div>
           <div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div>
         </div>
       </div>
