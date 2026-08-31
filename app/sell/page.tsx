@@ -1,82 +1,101 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function SellPage() {
+  const router = useRouter();
+  const [isSeller, setIsSeller] = useState(false);
+  const [sellerId, setSellerId] = useState("");
+  const [sellerName, setSellerName] = useState("");
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [category, setCategory] = useState("Phones");
+  const [location, setLocation] = useState("Ayeduase");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [image, setImage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [form, setForm] = useState({ title: "", price: "", category: "Phones", location: "", whatsapp: "", seller_name: "" });
+  const [msg, setMsg] = useState("");
 
-  const handleImageUpload = async (e: any) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const fileName = Date.now() + "-" + file.name;
-      const { data, error } = await supabase.storage.from("product-images").upload(fileName, file);
-      if (error) {
-        alert("Bucket not created yet. Go to Supabase > Storage > New Bucket named 'product-images' (public). For now using local preview.");
-        const local = URL.createObjectURL(file);
-        setImageUrl(local);
-      } else {
-        const { data: pub } = supabase.storage.from("product-images").getPublicUrl(fileName);
-        setImageUrl(pub.publicUrl);
-      }
-    } catch (err: any) { alert(err.message); }
-    setUploading(false);
-  };
+  useEffect(() => {
+    const seller = localStorage.getItem("ksm_is_seller");
+    const id = localStorage.getItem("ksm_seller_id") || "";
+    const name = localStorage.getItem("ksm_seller_name") || "";
+    if (seller !== "true" || !id.toLowerCase().endsWith("/ksom")) {
+      router.push("/login");
+    } else {
+      setIsSeller(true);
+      setSellerId(id);
+      setSellerName(name);
+    }
+  }, [router]);
 
-  const submit = async () => {
-    if (!form.title || !form.price || !form.whatsapp) { alert("Fill title, price, WhatsApp"); return; }
-    if (!form.seller_name) { alert("Please enter your Shop/Collection Name - must match your collection name to show on your collection page!"); return; }
-    if (!imageUrl) { alert("Please upload image first"); return; }
+  const handleSell = async () => {
+    if (!title || !price || !whatsapp || !image) {
+      setMsg("❌ Fill title, price, whatsapp and image link");
+      return;
+    }
     setLoading(true);
-    const { error } = await supabase.from("products").insert([{ ...form, image_url: imageUrl }]);
+    const { error } = await supabase.from("products").insert([
+      {
+        title,
+        price: `GH₵ ${price}`,
+        category,
+        location,
+        whatsapp,
+        image_url: image,
+        seller_name: sellerName || sellerId.split("/")[0],
+        seller_id_tag: sellerId,
+      },
+    ]);
     setLoading(false);
-    if (error) alert(error.message);
-    else {
-      alert(`Posted! It will show on homepage and also on your collection page /seller/${form.seller_name}`);
-      setForm({ title: "", price: "", category: "Phones", location: "", whatsapp: "", seller_name: "" });
-      setImageUrl("");
-      window.location.href = "/";
+    if (error) {
+      setMsg("❌ Error: " + error.message);
+    } else {
+      setMsg("✅ Product posted! It will show in Latest now.");
+      setTitle(""); setPrice(""); setImage(""); setWhatsapp("");
+      setTimeout(() => router.push("/"), 1200);
     }
   };
 
+  if (!isSeller) return <div className="min-h-screen grid place-items-center bg-[#fbfaf8] text-[12px]">Checking seller tag /ksom...</div>;
+
   return (
     <div className="min-h-screen bg-[#fbfaf8] p-5 pb-28">
-      <div className="flex justify-between items-center"><h1 className="text-xl font-medium">Sell on KSOM</h1><a href="/" className="text-xs px-3 py-1.5 rounded-full bg-black text-white">Home</a></div>
-
-      <div className="mt-6 max-w-md grid gap-3">
-        {/* IMAGE UPLOAD */}
-        <div className="rounded-[18px] border border-dashed border-black/20 p-4 bg-white text-center">
-          {imageUrl ? <img src={imageUrl} className="w-full h-52 object-cover rounded-[12px] mb-3" /> : <div className="py-10 text-xs opacity-40">No image selected</div>}
-          <label className={`inline-block px-5 py-2.5 rounded-full text-xs font-bold cursor-pointer ${uploading ? "bg-black/20 text-black/40" : "bg-black text-white"}`}>
-            {uploading ? "Uploading..." : imageUrl ? "Change Image" : "📷 Upload Image from Gallery"}
-            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
-          </label>
-          <p className="text-[10px] opacity-40 mt-2">Or paste URL below (optional)</p>
-          <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://...jpg (optional if uploaded)" className="mt-2 w-full rounded-full px-4 py-2.5 border border-black/10 text-xs outline-none" />
+      <div className="max-w-md mx-auto">
+        <div className="flex justify-between items-center">
+          <a href="/" className="text-[11px] px-3 py-1.5 rounded-full bg-black text-white">← Home</a>
+          <span className="text-[10px] opacity-60">Seller: {sellerName} • {sellerId}</span>
         </div>
 
-        <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Title e.g. iPhone 13 Neat" className="w-full rounded-full px-4 py-3 border border-black/10 text-sm outline-none bg-white" />
-        <input value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Price e.g. GH₵ 4200" className="w-full rounded-full px-4 py-3 border border-black/10 text-sm outline-none bg-white" />
-        <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full rounded-full px-4 py-3 border border-black/10 text-sm outline-none bg-white">
-          <option>Phones</option><option>Fashion</option><option>Electronics</option><option>Shoes</option><option>Furniture</option><option>Books</option><option>Lab</option>
-        </select>
-        <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Location e.g. Ayeduase" className="w-full rounded-full px-4 py-3 border border-black/10 text-sm outline-none bg-white" />
-        <input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="WhatsApp e.g. 233540000001" className="w-full rounded-full px-4 py-3 border border-black/10 text-sm outline-none bg-white" />
+        <h1 className="text-[24px] font-light mt-6">Post new item</h1>
+        <p className="text-[11px] opacity-60 mt-1">Only verified /ksom sellers can post. Your item shows in Latest.</p>
 
-        {/* NEW - SELLER NAME FIELD - THIS LINKS PRODUCT TO COLLECTION */}
-        <div className="p-3 rounded-[18px] bg-[#0d9488]/10 border border-[#0d9488]/20">
-          <p className="text-[11px] font-bold text-[#0d9488]">🔗 Link to Collection (Important)</p>
-          <p className="text-[10px] opacity-60 mt-1">Type your exact Shop/Collection Name. Must match what you booked at /collections. Example: If your collection is "Sneaker Hub", type "Sneaker Hub" here. Product will then show on /seller/Sneaker Hub page.</p>
-          <input value={form.seller_name} onChange={e => setForm({ ...form, seller_name: e.target.value })} placeholder="Shop Name e.g. Sneaker Hub (must match collection name)" className="mt-2 w-full rounded-full px-4 py-3 border border-[#0d9488]/20 text-sm outline-none bg-white" />
+        <div className="mt-6 bg-white rounded-[20px] p-5 border border-black/5 space-y-3">
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title e.g. iPhone 13 128GB Neat" className="w-full px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none" />
+          <div className="flex gap-2">
+            <input value={price} onChange={e => setPrice(e.target.value)} placeholder="Price e.g. 4200" className="flex-1 px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none" />
+            <select value={category} onChange={e => setCategory(e.target.value)} className="flex-1 px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none">
+              <option>Phones</option><option>Fashion</option><option>Electronics</option><option>Shoes</option><option>Grocery</option><option>Books</option><option>Furniture</option><option>Laptop</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <select value={location} onChange={e => setLocation(e.target.value)} className="flex-1 px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none">
+              <option>Ayeduase</option><option>Kotei</option><option>Boadi</option><option>Campus</option><option>Tech</option><option>Other</option>
+            </select>
+            <input value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="WhatsApp e.g. 233540000001" className="flex-1 px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none" />
+          </div>
+          <input value={image} onChange={e => setImage(e.target.value)} placeholder="Image link (https://...)" className="w-full px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none" />
+          {image && <img src={image} alt="preview" className="w-full h-48 object-cover rounded-[16px] mt-2" />}
+
+          {msg && <p className="text-[11px] p-3 rounded-full bg-black text-white text-center">{msg}</p>}
+
+          <button onClick={handleSell} disabled={loading} className="w-full bg-black text-white py-3.5 rounded-full text-[13px] font-bold mt-2">
+            {loading ? "Posting..." : "Post to KSOM →"}
+          </button>
+
+          <button onClick={() => { localStorage.removeItem("ksm_is_seller"); localStorage.removeItem("ksm_seller_id"); router.push("/login"); }} className="w-full text-[11px] opacity-50 mt-2">Log out seller</button>
         </div>
-
-        <button onClick={submit} disabled={loading} className="w-full bg-black text-white rounded-full py-3.5 text-sm font-bold mt-2">{loading ? "Posting..." : "Post to KSOM"}</button>
-
-
       </div>
     </div>
   );

@@ -2,21 +2,62 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function LoginPage() {
-  const [email, setEmail] = useState("");
+export default function Login() {
+  const [id, setId] = useState("");
+  const [name, setName] = useState("");
+  const [err, setErr] = useState("");
   const router = useRouter();
+
+  const handleLogin = () => {
+    const cleanId = id.trim().toLowerCase();
+
+    if (!cleanId.endsWith("/ksom")) {
+      setErr("❌ Only verified sellers! Your ID must end with /ksom (example: 20876543/ksom)");
+      return;
+    }
+
+    localStorage.setItem("ksm_seller_id", id.trim());
+    localStorage.setItem("ksm_seller_name", name || id.split("/")[0]);
+    localStorage.setItem("ksm_is_seller", "true");
+
+    setErr("✅ Verified! Redirecting to Sell...");
+    setTimeout(() => router.push("/sell"), 800);
+  };
+
   return (
-    <div className="min-h-screen bg-[#fbfaf8] p-5 flex flex-col">
-      <h1 className="text-xl font-medium">Log in to KSOM</h1>
-      <p className="text-xs opacity-60 mt-1">Use your KNUST email to verify</p>
-      <div className="mt-8 max-w-md w-full">
-        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="you@st.knust.edu.gh" className="w-full rounded-full px-4 py-3 border border-black/10 outline-none text-sm" />
-        <button onClick={() => {
-          localStorage.setItem("ksm_user", email);
-          alert("Logged in as " + email);
-          router.push("/");
-        }} className="mt-3 w-full bg-black text-white rounded-full py-3.5 text-sm font-medium">Continue</button>
-        <button onClick={() => router.push("/")} className="mt-3 w-full bg-white border border-black/10 rounded-full py-3.5 text-sm">Back Home</button>
+    <div className="min-h-screen bg-[#fbfaf8] grid place-items-center p-6">
+      <div className="w-full max-w-sm bg-white rounded-[24px] p-6 border border-black/10 shadow-xl">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-8 h-8 bg-white rounded-full p-1 border grid place-items-center">
+            <img src="https://upload.wikimedia.org/wikipedia/en/f/f2/KNUST_seal.png" className="w-full h-full object-contain" alt="" />
+          </div>
+          <span className="text-[11px] tracking-widest">KSOM — SELLER LOGIN</span>
+        </div>
+
+        <h1 className="text-[22px] font-light leading-tight">Seller verification</h1>
+        <p className="text-[11px] opacity-60 mt-2">Only students with seller tag <b>/ksom</b> can post. Example: <code className="bg-black/5 px-1 rounded">20812345/ksom</code></p>
+
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Your shop name (e.g. Prince Phones)"
+          className="w-full mt-5 px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none"
+        />
+        <input
+          value={id}
+          onChange={e => setId(e.target.value)}
+          placeholder="Student ID /ksom"
+          className="w-full mt-3 px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none border focus:border-black"
+        />
+
+        {err && <p className="text-[11px] mt-3 p-2.5 rounded-[12px] bg-black text-white text-center">{err}</p>}
+
+        <button onClick={handleLogin} className="w-full mt-4 bg-black text-white py-3.5 rounded-full text-[13px] font-bold">
+          Verify & Continue to Sell →
+        </button>
+
+        <p className="text-[10px] opacity-40 mt-4 text-center">Admin controls Collections & Ads. Sellers control Latest items only.</p>
+        <a href="/" className="text-[11px] mt-3 block text-center underline">← Back to Market</a>
       </div>
     </div>
   );
