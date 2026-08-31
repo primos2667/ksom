@@ -68,7 +68,7 @@ export default function HomeFinal() {
   const isDark = theme === "dark";
   const cats = ["All", "Phones", "Fashion", "Electronics", "Shoes", "Grocery", "Books"];
   const defaultAds = ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800", "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=800", "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=400"];
-  const displayAds = adverts.length > 0 ? adverts.map((a: any) => ({ img: a.image_url || defaultAds[0], title: a.business_name, desc: a.description, wa: a.whatsapp, isPaid: true, full: a })) : defaultAds.map(img => ({ img, title: "Advertisement", desc: "", wa: "", isPaid: false, full: null }));
+  const displayAds = adverts.length > 0 ? adverts.map((a: any) => ({ img: a.image_url || defaultAds[0], title: a.business_name, desc: a.description, wa: a.whatsapp, isPaid: true, full: a })) : defaultAds.map((img, idx) => ({ img, title: ["KSOM Marketplace", "Advertise With Us", "KNUST Students"][idx], desc: ["Buy & Sell on campus", "Reach 10k+ students GH₵20/week", "Verified sellers only"][idx], wa: "", isPaid: false, full: { image_url: img, business_name: ["KSOM Marketplace", "Advertise With Us", "KNUST Students"][idx], description: ["Buy & Sell on campus", "Reach 10k+ students", "Verified sellers only"][idx], whatsapp: "" } }));
 
   let filtered = active === "All" ? products : products.filter(p => p.category === active || p.category?.toLowerCase().includes(active.toLowerCase()));
   if (search) filtered = filtered.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
@@ -94,7 +94,7 @@ export default function HomeFinal() {
 
       <div className="mt-5 px-5 flex gap-2 overflow-x-auto scrollbar-none">{cats.map(c => <button key={c} onClick={() => setActive(c)} className={`shrink-0 rounded-full px-4 py-2 text-[11px] border transition ${active === c ? (isDark ? "bg-white text-black border-white" : "bg-black text-white border-black") : (isDark ? "bg-transparent text-white/50 border-white/10" : "bg-white text-black/60 border-black/10")}`}>{c}</button>)}</div>
 
-      {/* ===== FIXED AD BOARD - INSTAGRAM STYLE - NO CUT NO STRETCH ===== */}
+      {/* ===== FIXED AD BOARD - INSTAGRAM STYLE - NOW TAP WORKS ===== */}
       <div className="mt-6 px-3">
         <div className={`rounded-[20px] p-2 border ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}>
           <div className="flex justify-between items-center px-3 py-2">
@@ -102,21 +102,16 @@ export default function HomeFinal() {
             <a href="/advertise" className={`text-[9px] px-2.5 py-1 rounded-full font-bold ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>YOUR ADS →</a>
           </div>
 
-          {/* Instagram style - NO CUT */}
           <div
-            onClick={() => displayAds[ad]?.full && setExpandedAd(displayAds[ad].full)}
-            className="rounded-[14px] overflow-hidden aspect-[16/9] relative bg-black cursor-pointer group"
+            onClick={() => setExpandedAd(displayAds[ad]?.full || { image_url: displayAds[ad]?.img, business_name: displayAds[ad]?.title, description: displayAds[ad]?.desc, whatsapp: displayAds[ad]?.wa })}
+            className="rounded-[14px] overflow-hidden aspect-[16/9] relative bg-black cursor-pointer active:scale-[0.98] transition-transform select-none"
           >
-            {/* Blurred background fills gaps */}
             <img src={displayAds[ad]?.img} className="absolute inset-0 w-full h-full object-cover blur-[26px] scale-110 opacity-70" alt="" />
-            {/* Real image - contain = no stretch no cut */}
-            <img src={displayAds[ad]?.img} className="relative w-full h-full object-contain" alt="" />
+            <img src={displayAds[ad]?.img} className="relative w-full h-full object-contain pointer-events-none" alt="" />
 
             {displayAds[ad]?.isPaid && <div className="absolute top-3 left-3 bg-yellow-400 text-black text-[9px] font-bold px-2 py-1 rounded-full">AD • {displayAds[ad]?.title}</div>}
-            <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center">
-              <div className="flex gap-1">{displayAds.map((_: any, i: number) => <div key={i} className={`h-1 rounded-full transition-all ${i === ad ? "w-6 bg-white" : "w-1.5 bg-white/40"}`}></div>)}</div>
-              <span className="bg-black/50 backdrop-blur text-white text-[9px] px-2 py-1 rounded-full opacity-0 group-hover:opacity-100">Tap to expand</span>
-            </div>
+            <div className="absolute bottom-3 left-3 flex gap-1">{displayAds.map((_: any, i: number) => <div key={i} className={`h-1 rounded-full transition-all ${i === ad ? "w-6 bg-white" : "w-1.5 bg-white/40"}`}></div>)}</div>
+            <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur text-white text-[9px] px-2.5 py-1 rounded-full">Tap to expand 👆</div>
           </div>
 
           <div className="px-1 pt-2 flex justify-between items-center">
@@ -126,7 +121,6 @@ export default function HomeFinal() {
         </div>
       </div>
 
-      {/* === NEW COLLECTIONS SECTION - AFTER AD BOARD === */}
       <div className="mt-8 px-5">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Featured Collections — {collections.length}</h2>
@@ -145,7 +139,6 @@ export default function HomeFinal() {
             </a>
           ))}
         </div>
-        <p className="text-[10px] opacity-40 mt-2 text-center">Tap seller name to see only their items. No cart/fav here.</p>
       </div>
 
       <div className="mt-8 px-5"><div className="flex justify-between items-center mb-3"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {filtered.length} items</h2><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
@@ -162,21 +155,19 @@ export default function HomeFinal() {
 
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50"><div className="flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] bg-white/10 border-white/20"><a href="/" className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}><span>⌂</span> Home</a><a href="/favorites" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative ${isDark ? "bg-white/10 text-white border border-white/20" : "bg-black/5 text-black border border-black/10"}`}>♡{favs.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] rounded-full grid place-items-center">{favs.length}</span>}</a><a href="/cart" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative ${isDark ? "bg-white/10 text-white border border-white/20" : "bg-black/5 text-black border border-black/10"}`}>🛒{cart.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-black text-white text-[8px] rounded-full grid place-items-center">{cart.length}</span>}</a><button onClick={() => setTheme(isDark ? "light" : "dark")} className={`w-10 h-10 rounded-full grid place-items-center border backdrop-blur font-bold ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>{isDark ? "☀" : "☾"}</button></div></div>
 
-      {/* FULLSCREEN EXPAND FOR AD */}
+      {/* FULLSCREEN EXPAND - NOW WORKS FOR ALL ADS */}
       {expandedAd && (
-        <div className="fixed inset-0 z-[9999] bg-black grid place-items-center">
+        <div onClick={() => setExpandedAd(null)} className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md grid place-items-center p-4">
           <button onClick={() => setExpandedAd(null)} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur text-white grid place-items-center">✕</button>
-          <div className="absolute top-0 left-0 right-0 p-4 flex items-center gap-3 bg-gradient-to-b from-black/80 to-transparent z-10">
-            <div className="w-9 h-9 rounded-full bg-white/20 grid place-items-center text-white text-[12px] font-bold">{expandedAd.business_name?.[0]}</div>
-            <div><p className="text-white text-[13px] font-bold">{expandedAd.business_name}</p><p className="text-white/60 text-[11px]">Sponsored • KSOM</p></div>
-          </div>
-          <img src={expandedAd.image_url} className="w-full h-full object-contain" alt="" />
-          <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black via-black/60 to-transparent">
-            <p className="text-white font-bold">{expandedAd.business_name}</p>
-            <p className="text-white/70 text-[13px] mt-1">{expandedAd.description}</p>
-            <div className="flex gap-2 mt-4">
-              <a href={`https://wa.me/${String(expandedAd.whatsapp || "").replace(/[^0-9]/g, '')}`} target="_blank" className="flex-1 bg-white text-black rounded-full py-3.5 text-center text-[13px] font-bold">💬 WhatsApp</a>
-              <button onClick={() => setExpandedAd(null)} className="px-6 py-3.5 rounded-full bg-white/15 text-white text-[13px]">Close</button>
+          <div className="w-full max-w-4xl" onClick={e => e.stopPropagation()}>
+            <img src={expandedAd.image_url} className="w-full h-auto max-h-[70vh] object-contain rounded-[16px] mx-auto" alt="" />
+            <div className="mt-4 text-center">
+              <p className="text-white font-bold text-[16px]">{expandedAd.business_name}</p>
+              <p className="text-white/70 text-[13px] mt-1">{expandedAd.description}</p>
+              {expandedAd.whatsapp && (
+                <a href={`https://wa.me/${String(expandedAd.whatsapp).replace(/[^0-9]/g, '')}`} target="_blank" className="mt-4 inline-block bg-white text-black rounded-full px-6 py-3 text-[13px] font-bold">💬 WhatsApp: {expandedAd.business_name}</a>
+              )}
+              <p className="text-white/30 text-[11px] mt-3">Tap outside to close • Pinch to zoom</p>
             </div>
           </div>
         </div>
