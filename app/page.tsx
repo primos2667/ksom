@@ -12,6 +12,7 @@ export default function HomeFinal() {
   const [adverts, setAdverts] = useState<any[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [expandedAd, setExpandedAd] = useState<any>(null);
 
   useEffect(() => {
     const m = window.matchMedia("(prefers-color-scheme: dark)");
@@ -36,7 +37,6 @@ export default function HomeFinal() {
       if (data) setAdverts(data);
     });
 
-    // FETCH APPROVED COLLECTIONS
     supabase.from("collections").select("*").eq("status", "approved").order("created_at", { ascending: false }).then(({ data }) => {
       if (data && data.length > 0) setCollections(data);
       else setCollections([
@@ -68,7 +68,7 @@ export default function HomeFinal() {
   const isDark = theme === "dark";
   const cats = ["All", "Phones", "Fashion", "Electronics", "Shoes", "Grocery", "Books"];
   const defaultAds = ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800", "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=800", "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=400"];
-  const displayAds = adverts.length > 0 ? adverts.map((a: any) => ({ img: a.image_url || defaultAds[0], title: a.business_name, desc: a.description, wa: a.whatsapp, isPaid: true })) : defaultAds.map(img => ({ img, title: "Advertisement", desc: "", wa: "", isPaid: false }));
+  const displayAds = adverts.length > 0 ? adverts.map((a: any) => ({ img: a.image_url || defaultAds[0], title: a.business_name, desc: a.description, wa: a.whatsapp, isPaid: true, full: a })) : defaultAds.map(img => ({ img, title: "Advertisement", desc: "", wa: "", isPaid: false, full: null }));
 
   let filtered = active === "All" ? products : products.filter(p => p.category === active || p.category?.toLowerCase().includes(active.toLowerCase()));
   if (search) filtered = filtered.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
@@ -77,7 +77,7 @@ export default function HomeFinal() {
     <div className={`${isDark ? "bg-[#0f0f0f] text-[#f5f3ef]" : "bg-[#fbfaf8] text-[#121212]"} min-h-screen pb-28 transition-colors`}>
       <div className={`sticky top-0 z-20 backdrop-blur-xl border-b ${isDark ? "bg-[#0f0f0f]/90 border-white/10" : "bg-[#fbfaf8]/90 border-black/10"}`}>
         <div className="px-5 h-14 flex justify-between items-center">
-          <div className="flex items-center gap-2.5"><img src="knust-logo.png" className="w-8 h-8 object-contain bg-white rounded-full p-0.5" /><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div>
+          <div className="flex items-center gap-2.5"><img src="knust-logo.png" className="w-8 h-8 object-contain bg-white rounded-full p-0.5" alt="" /><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div>
           <div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div>
         </div>
       </div>
@@ -94,7 +94,37 @@ export default function HomeFinal() {
 
       <div className="mt-5 px-5 flex gap-2 overflow-x-auto scrollbar-none">{cats.map(c => <button key={c} onClick={() => setActive(c)} className={`shrink-0 rounded-full px-4 py-2 text-[11px] border transition ${active === c ? (isDark ? "bg-white text-black border-white" : "bg-black text-white border-black") : (isDark ? "bg-transparent text-white/50 border-white/10" : "bg-white text-black/60 border-black/10")}`}>{c}</button>)}</div>
 
-      <div className="mt-6 px-3"><div className={`rounded-[20px] p-2 border ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}><div className="flex justify-between items-center px-3 py-2"><span className="text-[10px] tracking-[0.2em] uppercase opacity-50">{displayAds[ad]?.isPaid ? `${displayAds[ad]?.title} • AD` : "Advertisement"}</span><a href="/advertise" className={`text-[9px] px-2.5 py-1 rounded-full font-bold ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>YOUR ADS →</a></div><div className="rounded-[14px] overflow-hidden h-[200px] relative bg-black"><div className="flex h-full transition-transform duration-[900ms]" style={{ transform: `translateX(-${ad * 100}%)` }}>{displayAds.map((item: any, i) => <div key={i} className="min-w-full h-full relative"><img src={item.img} className="w-full h-full object-cover" alt="" />{item.isPaid && <div className="absolute top-3 left-3 bg-yellow-400 text-black text-[9px] font-bold px-2 py-1 rounded-full">AD • {item.title}</div>}</div>)}</div><div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none"></div><div className="absolute bottom-3 left-3 flex gap-1">{displayAds.map((_: any, i: number) => <div key={i} className={`h-1 rounded-full ${i === ad ? "w-6 bg-white" : "w-1.5 bg-white/40"}`}></div>)}</div>{displayAds[ad]?.isPaid ? <a href={`https://wa.me/${String(displayAds[ad]?.wa || "").replace(/[^0-9]/g, '')}`} target="_blank" className="absolute bottom-3 right-3 bg-[#25D366] text-white text-[10px] px-3 py-1.5 rounded-full font-bold">Contact</a> : <a href="/advertise" className="absolute bottom-3 right-3 bg-white text-black text-[10px] px-3 py-1.5 rounded-full font-bold">Advertise With Me</a>}</div></div></div>
+      {/* ===== FIXED AD BOARD - INSTAGRAM STYLE - NO CUT NO STRETCH ===== */}
+      <div className="mt-6 px-3">
+        <div className={`rounded-[20px] p-2 border ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}>
+          <div className="flex justify-between items-center px-3 py-2">
+            <span className="text-[10px] tracking-[0.2em] uppercase opacity-50">{displayAds[ad]?.isPaid ? `${displayAds[ad]?.title} • AD` : "Advertisement"} • {ad + 1}/{displayAds.length}</span>
+            <a href="/advertise" className={`text-[9px] px-2.5 py-1 rounded-full font-bold ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>YOUR ADS →</a>
+          </div>
+
+          {/* Instagram style - NO CUT */}
+          <div
+            onClick={() => displayAds[ad]?.full && setExpandedAd(displayAds[ad].full)}
+            className="rounded-[14px] overflow-hidden aspect-[16/9] relative bg-black cursor-pointer group"
+          >
+            {/* Blurred background fills gaps */}
+            <img src={displayAds[ad]?.img} className="absolute inset-0 w-full h-full object-cover blur-[26px] scale-110 opacity-70" alt="" />
+            {/* Real image - contain = no stretch no cut */}
+            <img src={displayAds[ad]?.img} className="relative w-full h-full object-contain" alt="" />
+
+            {displayAds[ad]?.isPaid && <div className="absolute top-3 left-3 bg-yellow-400 text-black text-[9px] font-bold px-2 py-1 rounded-full">AD • {displayAds[ad]?.title}</div>}
+            <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center">
+              <div className="flex gap-1">{displayAds.map((_: any, i: number) => <div key={i} className={`h-1 rounded-full transition-all ${i === ad ? "w-6 bg-white" : "w-1.5 bg-white/40"}`}></div>)}</div>
+              <span className="bg-black/50 backdrop-blur text-white text-[9px] px-2 py-1 rounded-full opacity-0 group-hover:opacity-100">Tap to expand</span>
+            </div>
+          </div>
+
+          <div className="px-1 pt-2 flex justify-between items-center">
+            <p className="text-[11px] opacity-60 truncate pr-2">{displayAds[ad]?.desc || "Reach 10k+ KNUST students"}</p>
+            {displayAds[ad]?.isPaid ? <a onClick={(e) => { e.stopPropagation() }} href={`https://wa.me/${String(displayAds[ad]?.wa || "").replace(/[^0-9]/g, '')}`} target="_blank" className="shrink-0 bg-[#25D366] text-white text-[10px] px-3 py-1.5 rounded-full font-bold">Contact</a> : <a href="/advertise" className="shrink-0 bg-black text-white text-[10px] px-3 py-1.5 rounded-full font-bold">Advertise →</a>}
+          </div>
+        </div>
+      </div>
 
       {/* === NEW COLLECTIONS SECTION - AFTER AD BOARD === */}
       <div className="mt-8 px-5">
@@ -131,6 +161,27 @@ export default function HomeFinal() {
       </div>
 
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50"><div className="flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] bg-white/10 border-white/20"><a href="/" className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}><span>⌂</span> Home</a><a href="/favorites" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative ${isDark ? "bg-white/10 text-white border border-white/20" : "bg-black/5 text-black border border-black/10"}`}>♡{favs.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] rounded-full grid place-items-center">{favs.length}</span>}</a><a href="/cart" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative ${isDark ? "bg-white/10 text-white border border-white/20" : "bg-black/5 text-black border border-black/10"}`}>🛒{cart.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-black text-white text-[8px] rounded-full grid place-items-center">{cart.length}</span>}</a><button onClick={() => setTheme(isDark ? "light" : "dark")} className={`w-10 h-10 rounded-full grid place-items-center border backdrop-blur font-bold ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>{isDark ? "☀" : "☾"}</button></div></div>
+
+      {/* FULLSCREEN EXPAND FOR AD */}
+      {expandedAd && (
+        <div className="fixed inset-0 z-[9999] bg-black grid place-items-center">
+          <button onClick={() => setExpandedAd(null)} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur text-white grid place-items-center">✕</button>
+          <div className="absolute top-0 left-0 right-0 p-4 flex items-center gap-3 bg-gradient-to-b from-black/80 to-transparent z-10">
+            <div className="w-9 h-9 rounded-full bg-white/20 grid place-items-center text-white text-[12px] font-bold">{expandedAd.business_name?.[0]}</div>
+            <div><p className="text-white text-[13px] font-bold">{expandedAd.business_name}</p><p className="text-white/60 text-[11px]">Sponsored • KSOM</p></div>
+          </div>
+          <img src={expandedAd.image_url} className="w-full h-full object-contain" alt="" />
+          <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black via-black/60 to-transparent">
+            <p className="text-white font-bold">{expandedAd.business_name}</p>
+            <p className="text-white/70 text-[13px] mt-1">{expandedAd.description}</p>
+            <div className="flex gap-2 mt-4">
+              <a href={`https://wa.me/${String(expandedAd.whatsapp || "").replace(/[^0-9]/g, '')}`} target="_blank" className="flex-1 bg-white text-black rounded-full py-3.5 text-center text-[13px] font-bold">💬 WhatsApp</a>
+              <button onClick={() => setExpandedAd(null)} className="px-6 py-3.5 rounded-full bg-white/15 text-white text-[13px]">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`button{-webkit-tap-highlight-color:transparent} .scrollbar-none::-webkit-scrollbar{display:none}`}</style>
     </div>
   );
