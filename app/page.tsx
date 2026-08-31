@@ -67,7 +67,7 @@ export default function HomeFinal() {
 
   const isDark = theme === "dark";
   const cats = ["All", "Phones", "Fashion", "Electronics", "Shoes", "Grocery", "Books"];
-  const defaultAds = ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800", "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=800", "https://images.unsplash.com/photo-1498049794561-7780e7231666?w=800"];
+  const defaultAds = ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800", "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=800", "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=400"];
   const displayAds = adverts.length > 0 ? adverts.map((a: any) => ({ img: a.image_url || defaultAds[0], title: a.business_name, desc: a.description, wa: a.whatsapp, isPaid: true })) : defaultAds.map(img => ({ img, title: "Advertisement", desc: "", wa: "", isPaid: false }));
 
   let filtered = active === "All" ? products : products.filter(p => p.category === active || p.category?.toLowerCase().includes(active.toLowerCase()));

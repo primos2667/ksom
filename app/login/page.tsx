@@ -11,16 +11,18 @@ export default function Login() {
   const handleLogin = () => {
     const cleanId = id.trim().toLowerCase();
 
-    if (!cleanId.endsWith("/ksom")) {
-      setErr("❌ Only verified sellers! Your ID must end with /ksom (example: 20876543/ksom)");
+    // SECRET CHECK - hidden from UI
+    const secret = "/ksom";
+    if (!cleanId.endsWith(secret)) {
+      setErr("❌ Verification failed. Contact KSOM admin for seller access.");
       return;
     }
 
     localStorage.setItem("ksm_seller_id", id.trim());
-    localStorage.setItem("ksm_seller_name", name || id.split("/")[0]);
+    localStorage.setItem("ksm_seller_name", name || "KSOM Seller");
     localStorage.setItem("ksm_is_seller", "true");
 
-    setErr("✅ Verified! Redirecting to Sell...");
+    setErr("✅ Verified! Redirecting...");
     setTimeout(() => router.push("/sell"), 800);
   };
 
@@ -35,28 +37,28 @@ export default function Login() {
         </div>
 
         <h1 className="text-[22px] font-light leading-tight">Seller verification</h1>
-        <p className="text-[11px] opacity-60 mt-2">Only students with seller tag <b>/ksom</b> can post. Example: <code className="bg-black/5 px-1 rounded">20812345/ksom</code></p>
+        <p className="text-[11px] opacity-60 mt-2">Enter your verified seller ID provided by KSOM admin.</p>
 
         <input
           value={name}
           onChange={e => setName(e.target.value)}
-          placeholder="Your shop name (e.g. Prince Phones)"
+          placeholder="Shop name"
           className="w-full mt-5 px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none"
         />
         <input
           value={id}
           onChange={e => setId(e.target.value)}
-          placeholder="Student ID /ksom"
+          placeholder="Verified Seller ID"
           className="w-full mt-3 px-4 py-3 rounded-full bg-[#f3f3f5] text-[13px] outline-none border focus:border-black"
         />
 
         {err && <p className="text-[11px] mt-3 p-2.5 rounded-[12px] bg-black text-white text-center">{err}</p>}
 
         <button onClick={handleLogin} className="w-full mt-4 bg-black text-white py-3.5 rounded-full text-[13px] font-bold">
-          Verify & Continue to Sell →
+          Verify & Continue →
         </button>
 
-        <p className="text-[10px] opacity-40 mt-4 text-center">Admin controls Collections & Ads. Sellers control Latest items only.</p>
+        <p className="text-[10px] opacity-40 mt-4 text-center">Contact admin on WhatsApp for seller verification.</p>
         <a href="/" className="text-[11px] mt-3 block text-center underline">← Back to Market</a>
       </div>
     </div>
