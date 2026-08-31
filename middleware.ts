@@ -30,7 +30,7 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Protect /admin
-  if (req.nextUrl.pathname.startsWith("/admin")) {
+  if (req.nextUrl.pathname.startsWith("/admin-2kzla-pr1mos-2026-pr1ma")) {
     if (!user) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
@@ -43,5 +43,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin-2kzla-pr1mos-2026-pr1ma/:path*"],
 };
