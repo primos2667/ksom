@@ -15,6 +15,15 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         {children}
+        {process.env.NODE_ENV === "production" && (
+          <script dangerouslySetInnerHTML={{
+            __html: `
+              console.log = () => {};
+              console.warn = () => {};
+              console.error = () => {};
+            `
+          }} />
+        )}
       </body>
     </html>
   );
