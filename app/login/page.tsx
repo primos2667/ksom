@@ -31,7 +31,7 @@ export default function Login() {
       <div className="w-full max-w-sm bg-white rounded-[24px] p-6 border border-black/10 shadow-xl">
         <div className="flex items-center gap-2 mb-6">
           <div className="w-8 h-8 bg-white rounded-full p-1 border grid place-items-center">
-            <img src="https://upload.wikimedia.org/wikipedia/en/f/f2/KNUST_seal.png" className="w-full h-full object-contain" alt="" />
+            <img src="knust-logo.png" className="w-full h-full object-contain" alt="" />
           </div>
           <span className="text-[11px] tracking-widest">KSOM — SELLER LOGIN</span>
         </div>
