@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 
-const WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/YOUR_COMMUNITY_LINK_HERE";
+const WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/JDF0gdFMiQQKz9GslNGWav";
 
 export default function HomeFinal() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
