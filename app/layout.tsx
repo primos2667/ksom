@@ -1,17 +1,18 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { InstallPWA } from "@/components/InstallPWA";
 
 export const metadata: Metadata = {
-  title: "KSOM - KNUST Students Online Market | Buy & Sell on Campus",
-  description: "KSOM - KNUST Students Online Market. Buy & Sell phones, laptops, shoes, fashion, books & more on KNUST campus. Verified students, WhatsApp chat, no payment yet. Join 10k+ students!",
-  keywords: ["KNUST", "KSOM", "KNUST market", "students market", "buy sell KNUST", "Ayeduase", "Kotei", "Ghana students"],
+  title: "Prima KSOM - KNUST Students Online Market | Buy & Sell on Campus",
+  description: "Prima KSOM - KNUST Students Online Market. Buy & Sell phones, laptops, shoes, fashion, books & more on KNUST campus. Verified students, WhatsApp chat, no payment yet. Join 10k+ students!",
+  keywords: ["KNUST", "Prima KSOM", "KSOM", "KNUST market", "students market", "buy sell KNUST", "Ayeduase", "Kotei", "Ghana students"],
   manifest: "/manifest.json",
   openGraph: {
-    title: "KSOM - KNUST Students Online Market",
+    title: "Prima KSOM - KNUST Students Online Market",
     description: "Buy & Sell on KNUST campus. Verified students, WhatsApp chat.",
     url: "https://ksom.vercel.app",
-    siteName: "KSOM",
+    siteName: "Prima KSOM",
     images: [{ url: "/ksom-icon.png", width: 512, height: 512 }],
     type: "website",
   },
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "KSOM",
+    title: "Prima KSOM",
     statusBarStyle: "black-translucent",
   },
 };
@@ -38,7 +39,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased bg-white dark:bg-[#0f0f0f] transition-colors duration-300">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <InstallPWA />
+        </ThemeProvider>
         {process.env.NODE_ENV === "production" && (
           <script dangerouslySetInnerHTML={{
             __html: `
