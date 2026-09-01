@@ -1,0 +1,48 @@
+{
+  "background_color": "#0f0f0f",
+  "description": "Buy & Sell on KNUST campus. Verified students, WhatsApp chat.",
+  "display": "standalone",
+  "icons": [
+    {
+      "purpose": "any maskable",
+      "sizes": "192x192",
+      "src": "/knust-logo.png",
+      "type": "image/png"
+    },
+    {
+      "purpose": "any maskable",
+      "sizes": "512x512",
+      "src": "/knust-logo.png",
+      "type": "image/png"
+    }
+  ],
+  "name": "KSOM - KNUST Students Online Market",
+  "orientation": "portrait",
+  "short_name": "KSOM",
+  "shortcuts": [
+    {
+      "description": "Sell your item",
+      "icons": [
+        {
+          "sizes": "192x192",
+          "src": "/knust-logo.png"
+        }
+      ],
+      "name": "Sell Item",
+      "url": "/sell"
+    },
+    {
+      "description": "View cart",
+      "icons": [
+        {
+          "sizes": "192x192",
+          "src": "/knust-logo.png"
+        }
+      ],
+      "name": "Cart",
+      "url": "/cart"
+    }
+  ],
+  "start_url": "/",
+  "theme_color": "#0d9488"
+}
