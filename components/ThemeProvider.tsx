@@ -5,15 +5,11 @@ const ThemeContext = createContext<{ theme: string, toggle: () => void }>({ them
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState("light");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem("ksom-theme");
-    const sys = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    const initial = saved || sys;
-    setTheme(initial);
-    document.documentElement.classList.toggle("dark", initial === "dark");
+    // Sync with the class already set by blocking script
+    const isDark = document.documentElement.classList.contains("dark");
+    setTheme(isDark ? "dark" : "light");
 
     // Listen to system theme changes - REAL TIME!
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -34,8 +30,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("ksom-theme", newTheme);
     document.documentElement.classList.toggle("dark", newTheme === "dark");
   };
-
-  if (!mounted) return <>{children}</>;
 
   return <ThemeContext.Provider value={{ theme, toggle }}>{children}</ThemeContext.Provider>;
 }

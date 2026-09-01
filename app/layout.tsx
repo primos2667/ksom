@@ -38,7 +38,28 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased bg-white dark:bg-[#0f0f0f] transition-colors duration-300">
+      <head>
+        {/* BLOCKING SCRIPT - Sets theme BEFORE page renders - No flash! */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var saved = localStorage.getItem('ksom-theme');
+                  var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var theme = saved || (sysDark ? 'dark' : 'light');
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="antialiased bg-white dark:bg-[#0f0f0f]">
         <ThemeProvider>
           {children}
           <InstallPWA />
