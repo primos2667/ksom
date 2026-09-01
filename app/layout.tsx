@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     description: "Buy & Sell on KNUST campus. Verified students, WhatsApp chat.",
     url: "https://ksom.vercel.app",
     siteName: "KSOM",
-    images: [{ url: "/knust-logo.png", width: 800, height: 600 }],
+    images: [{ url: "public/knust-logo.png", width: 800, height: 600 }],
     type: "website",
   },
   icons: {
