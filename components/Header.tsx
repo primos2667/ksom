@@ -26,7 +26,7 @@ export default function Header() {
           </span>
         </Link>
         <p className="text-center text-[13px] font-bold tracking-wide text-navy">
-          STUDENTS&apos; ONLINE MARKET
+          STUDENTS' ONLINE MARKET
         </p>
         <div className="flex h-16 items-center justify-end pr-3">
           <Image src="/tag.svg" alt="KSOM" width={52} height={28} className="h-7 w-auto" />

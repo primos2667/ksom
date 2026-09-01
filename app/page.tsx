@@ -1,6 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+
+const WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/YOUR_COMMUNITY_LINK_HERE";
 
 export default function HomeFinal() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -13,6 +15,7 @@ export default function HomeFinal() {
   const [collections, setCollections] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [expandedAd, setExpandedAd] = useState<any>(null);
+  const latestRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const m = window.matchMedia("(prefers-color-scheme: dark)");
@@ -32,11 +35,7 @@ export default function HomeFinal() {
         { id: "6", title: "JBL Speaker Flip 6", price: "GH₵ 650", location: "Ayeduase", image_url: "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=400", category: "Audio", whatsapp: "233540000006", seller_name: "Audio Hub" },
       ]);
     });
-
-    supabase.from("adverts").select("*").eq("status", "approved").order("created_at", { ascending: false }).then(({ data }) => {
-      if (data) setAdverts(data);
-    });
-
+    supabase.from("adverts").select("*").eq("status", "approved").order("created_at", { ascending: false }).then(({ data }) => { if (data) setAdverts(data); });
     supabase.from("collections").select("*").eq("status", "approved").order("created_at", { ascending: false }).then(({ data }) => {
       if (data && data.length > 0) setCollections(data);
       else setCollections([
@@ -65,6 +64,30 @@ export default function HomeFinal() {
     setCart(n); localStorage.setItem("ksm_cart", JSON.stringify(n));
   };
 
+  // SEARCH: Faster scroll - 150ms only
+  const executeSearch = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setTimeout(() => {
+      latestRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150); // was 350, now 150 - faster!
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") executeSearch();
+  };
+
+  // CATEGORY: Smooth like V2 - beautiful slow center
+  const handleCategoryClick = (e: React.MouseEvent<HTMLButtonElement>, cat: string) => {
+    setActive(cat);
+    e.currentTarget.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest"
+    });
+  };
+
   const isDark = theme === "dark";
   const cats = ["All", "Phones", "Fashion", "Electronics", "Shoes", "Grocery", "Books"];
   const defaultAds = ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800", "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=800", "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=400"];
@@ -82,38 +105,38 @@ export default function HomeFinal() {
         </div>
       </div>
 
-      <div className="px-5 pt-5"><h1 className="text-[26px] font-[300] leading-[0.95]">Students online<br />market.</h1><div className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-[10px] border ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified KNUST students · Chat on WhatsApp · No payment yet</div></div>
+      <div className="px-5 pt-5">
+        <h1 className="text-[26px] font-[500] leading-[0.95]">Students' online<br />market</h1>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div>
+          <a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a>
+        </div>
+      </div>
 
       <div className="px-5 mt-5">
         <div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} />
-          <div className={`w-7 h-7 rounded-full grid place-items-center text-[11px] ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</div>
+          <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} />
+          <button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button>
         </div>
         {search && <p className="text-[10px] mt-2 opacity-50">Searching for "{search}" — {filtered.length} found</p>}
       </div>
 
-      <div className="mt-5 px-5 flex gap-2 overflow-x-auto scrollbar-none">{cats.map(c => <button key={c} onClick={() => setActive(c)} className={`shrink-0 rounded-full px-4 py-2 text-[11px] border transition ${active === c ? (isDark ? "bg-white text-black border-white" : "bg-black text-white border-black") : (isDark ? "bg-transparent text-white/50 border-white/10" : "bg-white text-black/60 border-black/10")}`}>{c}</button>)}</div>
+      {/* SMOOTH CATEGORY LIKE V2 */}
+      <div className="mt-5 px-5 flex gap-2 overflow-x-auto scrollbar-none cats-smooth-v2">{cats.map(c => <button key={c} onClick={(e) => handleCategoryClick(e, c)} className={`shrink-0 rounded-full px-4 py-2 text-[11px] border transition-all duration-300 ${active === c ? (isDark ? "bg-white text-black border-white" : "bg-black text-white border-black") : (isDark ? "bg-transparent text-white/50 border-white/10" : "bg-white text-black/60 border-black/10")}`}>{c}</button>)}</div>
 
-      {/* ===== FIXED AD BOARD - INSTAGRAM STYLE - NOW TAP WORKS ===== */}
       <div className="mt-6 px-3">
         <div className={`rounded-[20px] p-2 border ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}>
           <div className="flex justify-between items-center px-3 py-2">
             <span className="text-[10px] tracking-[0.2em] uppercase opacity-50">{displayAds[ad]?.isPaid ? `${displayAds[ad]?.title} • AD` : "Advertisement"} • {ad + 1}/{displayAds.length}</span>
             <a href="/advertise" className={`text-[9px] px-2.5 py-1 rounded-full font-bold ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>YOUR ADS →</a>
           </div>
-
-          <div
-            onClick={() => setExpandedAd(displayAds[ad]?.full || { image_url: displayAds[ad]?.img, business_name: displayAds[ad]?.title, description: displayAds[ad]?.desc, whatsapp: displayAds[ad]?.wa })}
-            className="rounded-[14px] overflow-hidden aspect-[16/9] relative bg-black cursor-pointer active:scale-[0.98] transition-transform select-none"
-          >
+          <div onClick={() => setExpandedAd(displayAds[ad]?.full || { image_url: displayAds[ad]?.img, business_name: displayAds[ad]?.title, description: displayAds[ad]?.desc, whatsapp: displayAds[ad]?.wa })} className="rounded-[14px] overflow-hidden aspect-[16/9] relative bg-black cursor-pointer active:scale-[0.98] transition-transform select-none">
             <img src={displayAds[ad]?.img} className="absolute inset-0 w-full h-full object-cover blur-[26px] scale-110 opacity-70" alt="" />
             <img src={displayAds[ad]?.img} className="relative w-full h-full object-contain pointer-events-none" alt="" />
-
             {displayAds[ad]?.isPaid && <div className="absolute top-3 left-3 bg-yellow-400 text-black text-[9px] font-bold px-2 py-1 rounded-full">AD • {displayAds[ad]?.title}</div>}
             <div className="absolute bottom-3 left-3 flex gap-1">{displayAds.map((_: any, i: number) => <div key={i} className={`h-1 rounded-full transition-all ${i === ad ? "w-6 bg-white" : "w-1.5 bg-white/40"}`}></div>)}</div>
             <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur text-white text-[9px] px-2.5 py-1 rounded-full">Tap to expand 👆</div>
           </div>
-
           <div className="px-1 pt-2 flex justify-between items-center">
             <p className="text-[11px] opacity-60 truncate pr-2">{displayAds[ad]?.desc || "Reach 10k+ KNUST students"}</p>
             {displayAds[ad]?.isPaid ? <a onClick={(e) => { e.stopPropagation() }} href={`https://wa.me/${String(displayAds[ad]?.wa || "").replace(/[^0-9]/g, '')}`} target="_blank" className="shrink-0 bg-[#25D366] text-white text-[10px] px-3 py-1.5 rounded-full font-bold">Contact</a> : <a href="/advertise" className="shrink-0 bg-black text-white text-[10px] px-3 py-1.5 rounded-full font-bold">Advertise →</a>}
@@ -141,7 +164,8 @@ export default function HomeFinal() {
         </div>
       </div>
 
-      <div className="mt-8 px-5"><div className="flex justify-between items-center mb-3"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {filtered.length} items</h2><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
+      <div ref={latestRef} id="latest-section" className="mt-8 px-5 scroll-mt-24">
+        <div className="flex justify-between items-center mb-3"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {filtered.length} items</h2><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
         <div className="grid gap-3">{filtered.slice(0, 3).map((p: any) => <div key={p.id} className={`flex gap-3 rounded-[18px] p-3 border ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}><div className="w-[88px] h-[88px] rounded-[12px] overflow-hidden bg-black/10 shrink-0"><img src={p.image_url} className="w-full h-full object-cover" alt="" /></div><div className="flex-1 flex flex-col justify-between"><div><div className="flex justify-between"><span className={`text-[9px] px-2 py-0.5 rounded-full border ${isDark ? "bg-white/10 border-white/10" : "bg-black/5 border-black/10"}`}>{p.category}</span><span className="text-[10px] opacity-40">{p.location}</span></div><p className="text-[13px] font-medium mt-1.5 leading-tight">{p.title}</p><p className="text-[13px] font-bold mt-1">{p.price}</p></div><div className="flex gap-2 mt-2"><a href={`https://wa.me/${String(p.whatsapp || "").replace(/[^0-9]/g, '')}?text=Hi, I'm interested in ${p.title} on KSOM`} target="_blank" className="flex-1 bg-[#25D366] text-white text-[11px] font-bold py-2 rounded-full text-center">💬 WhatsApp</a><button onClick={() => toggleCart(p.id)} className={`w-9 h-9 rounded-full grid place-items-center border ${cart.includes(p.id) ? "bg-black text-white" : isDark ? "bg-white/10 border-white/10" : "bg-black/5 border-black/10"}`}>🛒</button><button onClick={() => toggleFav(p.id)} className={`w-9 h-9 rounded-full grid place-items-center border ${favs.includes(p.id) ? "bg-red-500 text-white border-red-500" : isDark ? "bg-white/10 border-white/10" : "bg-black/5 border-black/10"}`}>♡</button></div></div></div>)}</div>
         <div className="mt-4 flex gap-3 overflow-x-auto scrollbar-none pb-2">{filtered.slice(3, 6).map((p: any) => <div key={p.id} className={`min-w-[150px] rounded-[16px] p-2.5 border ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}><div className="h-[100px] rounded-[12px] overflow-hidden bg-black/10"><img src={p.image_url} className="w-full h-full object-cover" alt="" /></div><p className="text-[11px] font-medium mt-2 truncate">{p.title}</p><p className="text-[11px] font-bold mt-0.5">{p.price}</p><div className="flex gap-1 mt-2"><a href={`https://wa.me/${String(p.whatsapp || "").replace(/[^0-9]/g, '')}`} target="_blank" className="flex-1 bg-[#25D366] text-white text-[9px] font-bold py-1.5 rounded-full text-center">WA</a><button onClick={() => toggleCart(p.id)} className="flex-1 bg-black text-white text-[9px] py-1.5 rounded-full">Cart</button></div></div>)}</div>
       </div>
@@ -155,7 +179,6 @@ export default function HomeFinal() {
 
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50"><div className="flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] bg-white/10 border-white/20"><a href="/" className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}><span>⌂</span> Home</a><a href="/favorites" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative ${isDark ? "bg-white/10 text-white border border-white/20" : "bg-black/5 text-black border border-black/10"}`}>♡{favs.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] rounded-full grid place-items-center">{favs.length}</span>}</a><a href="/cart" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative ${isDark ? "bg-white/10 text-white border border-white/20" : "bg-black/5 text-black border border-black/10"}`}>🛒{cart.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-black text-white text-[8px] rounded-full grid place-items-center">{cart.length}</span>}</a><button onClick={() => setTheme(isDark ? "light" : "dark")} className={`w-10 h-10 rounded-full grid place-items-center border backdrop-blur font-bold ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>{isDark ? "☀" : "☾"}</button></div></div>
 
-      {/* FULLSCREEN EXPAND - NOW WORKS FOR ALL ADS */}
       {expandedAd && (
         <div onClick={() => setExpandedAd(null)} className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md grid place-items-center p-4">
           <button onClick={() => setExpandedAd(null)} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur text-white grid place-items-center">✕</button>
@@ -164,16 +187,25 @@ export default function HomeFinal() {
             <div className="mt-4 text-center">
               <p className="text-white font-bold text-[16px]">{expandedAd.business_name}</p>
               <p className="text-white/70 text-[13px] mt-1">{expandedAd.description}</p>
-              {expandedAd.whatsapp && (
-                <a href={`https://wa.me/${String(expandedAd.whatsapp).replace(/[^0-9]/g, '')}`} target="_blank" className="mt-4 inline-block bg-white text-black rounded-full px-6 py-3 text-[13px] font-bold">💬 WhatsApp: {expandedAd.business_name}</a>
-              )}
+              {expandedAd.whatsapp && (<a href={`https://wa.me/${String(expandedAd.whatsapp).replace(/[^0-9]/g, '')}`} target="_blank" className="mt-4 inline-block bg-white text-black rounded-full px-6 py-3 text-[13px] font-bold">💬 WhatsApp: {expandedAd.business_name}</a>)}
               <p className="text-white/30 text-[11px] mt-3">Tap outside to close • Pinch to zoom</p>
             </div>
           </div>
         </div>
       )}
 
-      <style>{`button{-webkit-tap-highlight-color:transparent} .scrollbar-none::-webkit-scrollbar{display:none}`}</style>
+      <style>{`
+        .cats-smooth-v2 {
+          scroll-behavior: smooth;
+          -webkit-overflow-scrolling: touch;
+          scroll-padding: 0 50%;
+        }
+        .cats-smooth-v2::-webkit-scrollbar { display: none; }
+        /* Smooth like V2 - beautiful 300ms ease */
+        .cats-smooth-v2 button {
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+      `}</style>
     </div>
   );
 }
