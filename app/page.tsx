@@ -6,31 +6,62 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [show, setShow] = useState(false);
   const [hasNew, setHasNew] = useState(false);
+
   useEffect(() => {
     const saved = JSON.parse(localStorage.getItem("ksm_notifications") || "[]");
-    setNotifs(saved); setHasNew(saved.filter((n: any) => !n.read).length > 0);
+    setNotifs(saved);
+    const unread = saved.filter((n: any) => !n.read).length;
+    setHasNew(unread > 0);
+    // Set app icon badge on load
+    if (unread > 0 && 'setAppBadge' in navigator) {
+      (navigator as any).setAppBadge(unread).catch(() => { });
+    } else if (unread === 0 && 'clearAppBadge' in navigator) {
+      (navigator as any).clearAppBadge().catch(() => { });
+    }
+
     const channel = supabase.channel('ksom-notif-v11').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'products' }, (payload) => {
       const newNotif = { id: Date.now().toString(), type: "product", title: "New product on KSOM", message: `${payload.new.title} • ${payload.new.price}`, created_at: new Date().toISOString(), read: false, image: payload.new.image_url };
-      const updated = [newNotif, ...JSON.parse(localStorage.getItem("ksm_notifications") || "[]")].slice(0, 20);
-      localStorage.setItem("ksm_notifications", JSON.stringify(updated)); setNotifs(updated); setHasNew(true);
-      if (navigator.vibrate) navigator.vibrate(200);
+      const current = JSON.parse(localStorage.getItem("ksm_notifications") || "[]");
+      const updated = [newNotif, ...current].slice(0, 20);
+      localStorage.setItem("ksm_notifications", JSON.stringify(updated));
+      setNotifs(updated);
+      setHasNew(true);
+      const newUnread = updated.filter((n: any) => !n.read).length;
+      // 🔴 APP ICON BADGE - Like WhatsApp!
+      if ('setAppBadge' in navigator) {
+        (navigator as any).setAppBadge(newUnread).catch(() => { });
+      }
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
+
   const markRead = () => {
     const updated = notifs.map((n: any) => ({ ...n, read: true }));
-    setNotifs(updated); localStorage.setItem("ksm_notifications", JSON.stringify(updated)); setHasNew(false);
+    setNotifs(updated);
+    localStorage.setItem("ksm_notifications", JSON.stringify(updated));
+    setHasNew(false);
+    // Clear app icon badge
+    if ('clearAppBadge' in navigator) {
+      (navigator as any).clearAppBadge().catch(() => { });
+    }
   };
+
   const unread = notifs.filter((n: any) => !n.read).length;
+
   return (
     <div className="relative">
       <button onClick={() => { setShow(!show); if (!show) markRead(); }} className={`relative w-10 h-10 rounded-full grid place-items-center backdrop-blur border transition-all active:scale-90 ${isDark ? "bg-white/10 border-white/20 text-white" : "bg-black/5 border-black/10 text-black"}`}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 8a6 6 0 0 1 12 0c0 7 6 9 6 9H0s6-2 6-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
-        {hasNew && unread > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-white/20"></span>}
+        {hasNew && unread > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-1 border-2 border-white dark:border-[#1e1e1e] animate-pulse">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
       </button>
       {show && (
         <div className={`absolute bottom-[52px] left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-0 w-[320px] max-h-[420px] rounded-[20px] border shadow-[0_20px_60px_rgba(0,0,0,0.25)] overflow-hidden z-[100] backdrop-blur-xl ${isDark ? "bg-[#1e1e1e]/95 border-white/10" : "bg-white/95 border-black/10"}`}>
-          <div className={`p-4 flex justify-between items-center border-b ${isDark ? "border-white/10" : "border-black/5"}`}><h3 className={`text-[13px] font-bold ${isDark ? "text-white" : "text-black"}`}>Notifications</h3><button onClick={() => setShow(false)} className={`w-7 h-7 rounded-full grid place-items-center ${isDark ? "bg-white/10 text-white" : "bg-black/5 text-black"}`}>✕</button></div>
+          <div className={`p-4 flex justify-between items-center border-b ${isDark ? "border-white/10" : "border-black/5"}`}><h3 className={`text-[13px] font-bold ${isDark ? "text-white" : "text-black"}`}>Notifications {unread > 0 && <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{unread}</span>}</h3><button onClick={() => setShow(false)} className={`w-7 h-7 rounded-full grid place-items-center ${isDark ? "bg-white/10 text-white" : "bg-black/5 text-black"}`}>✕</button></div>
           <div className="overflow-y-auto max-h-[360px]">{notifs.length === 0 ? <div className="p-8 text-center"><p className={`text-[12px] ${isDark ? "text-white/60" : "text-black/50"}`}>No notifications yet</p></div> : notifs.map((n: any) => (<div key={n.id} className={`p-3.5 flex gap-3 border-b ${isDark ? "border-white/5" : "border-black/5"}`}>{n.image ? <img src={n.image} className="w-10 h-10 rounded-full object-cover" /> : <div className={`w-10 h-10 rounded-full grid place-items-center ${isDark ? "bg-white/10" : "bg-black/5"}`}>🛒</div>}<div className="flex-1"><p className={`text-[12px] ${isDark ? "text-white" : "text-black"}`}>{n.title} • {n.message}</p></div></div>))}</div>
         </div>
       )}
@@ -50,7 +81,7 @@ export default function HomeV11() {
   const [collections, setCollections] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [expandedAd, setExpandedAd] = useState<any>(null);
-  const [expandedProduct, setExpandedProduct] = useState<any>(null); // NEW - Product expand
+  const [expandedProduct, setExpandedProduct] = useState<any>(null);
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const latestRef = useRef<HTMLDivElement>(null);
 
@@ -123,9 +154,9 @@ export default function HomeV11() {
         <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><img src="knust-logo.png" className="w-8 h-8 object-contain bg-white rounded-full p-0.5" /><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
       </div>
 
-      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students' online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
+      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
 
-      <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for "{search}" — {filtered.length} found</p>}</div>
+      <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{search}&quot; — {filtered.length} found</p>}</div>
 
       <div className="mt-5 px-5 flex gap-2 overflow-x-auto scrollbar-none cats-smooth-v2">{cats.map(c => <button key={c} onClick={(e) => handleCategoryClick(e, c)} className={`shrink-0 rounded-full px-4 py-2 text-[11px] border transition-all duration-300 ${active === c ? (isDark ? "bg-white text-black border-white" : "bg-black text-white border-black") : (isDark ? "bg-transparent text-white/50 border-white/10" : "bg-white text-black/60 border-black/10")}`}>{c}</button>)}</div>
 
@@ -166,7 +197,28 @@ export default function HomeV11() {
 
       <div className="mt-8 px-5"><div className="rounded-[18px] p-4 border flex justify-between items-center" style={{ background: "#0d9488", borderColor: "#0d9488" }}><div><p className="text-white text-[12px] font-bold">Want to advertise?</p><p className="text-white/80 text-[10px]">Let me run your ads for you</p></div><a href="/advertise" className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full">Contact Me →</a></div></div>
 
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50"><div className={`flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] ${isDark ? "bg-[#1e1e1e]/80 border-white/10" : "bg-white/80 border-black/10"}`}><a href="/" className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg> Home</a><NotificationBell isDark={isDark} /><a href="/cart" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative border transition-all active:scale-90 ${isDark ? "bg-white/10 text-white border-white/10" : "bg-black/5 text-black border-black/5"}`}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>{cart.length > 0 && <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-black text-white text-[9px] rounded-full grid place-items-center px-1 font-bold border border-white/20">{cart.length}</span>}</a><button onClick={() => setTheme(isDark ? "light" : "dark")} className={`w-10 h-10 rounded-full grid place-items-center border backdrop-blur font-bold transition-all active:scale-90 ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>{isDark ? "☀" : "☾"}</button></div></div>
+      {/* BOTTOM HOMEBAR WITH SELL BUTTON + BADGE NUMBERS */}
+      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
+        <div className={`flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] ${isDark ? "bg-[#1e1e1e]/90 border-white/10" : "bg-white/90 border-black/10"}`}>
+          <a href="/" className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg> Home
+          </a>
+
+          <NotificationBell isDark={isDark} />
+
+          <a href="/cart" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative border transition-all active:scale-90 ${isDark ? "bg-white/10 text-white border-white/10" : "bg-black/5 text-black border-black/5"}`}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+            {cart.length > 0 && <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-black dark:bg-white text-white dark:text-black text-[10px] rounded-full grid place-items-center px-1 font-bold border-2 border-white/20">{cart.length}</span>}
+          </a>
+
+          {/* SELL BUTTON - NEW! */}
+          <a href="/sell" className="w-10 h-10 rounded-full grid place-items-center bg-[#0d9488] text-white border border-[#0d9488] shadow-sm active:scale-90 transition-all font-bold text-[18px]">
+            +
+          </a>
+
+          <button onClick={() => setTheme(isDark ? "light" : "dark")} className={`w-10 h-10 rounded-full grid place-items-center border backdrop-blur font-bold transition-all active:scale-90 ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>{isDark ? "☀" : "☾"}</button>
+        </div>
+      </div>
 
       {/* AD EXPAND MODAL */}
       {expandedAd && (
@@ -179,12 +231,11 @@ export default function HomeV11() {
         </div>
       )}
 
-      {/* PRODUCT EXPAND MODAL - NEW - Instagram style */}
+      {/* PRODUCT EXPAND MODAL */}
       {expandedProduct && (
         <div onClick={() => setExpandedProduct(null)} className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md grid place-items-center p-3 overflow-y-auto">
           <button onClick={() => setExpandedProduct(null)} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur text-white grid place-items-center">✕</button>
           <div className="w-full max-w-md bg-white rounded-[20px] overflow-hidden" onClick={e => e.stopPropagation()}>
-            {/* Big image with blur bg like ad */}
             <div className="relative bg-black aspect-[4/3] overflow-hidden">
               <img src={expandedProduct.image_url} className="absolute inset-0 w-full h-full object-cover blur-[24px] scale-110 opacity-60" alt="" />
               <img src={expandedProduct.image_url} className="relative w-full h-full object-contain" alt={expandedProduct.title} />
@@ -194,7 +245,6 @@ export default function HomeV11() {
               </div>
               <div className="absolute top-3 right-3 bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-full backdrop-blur">👁 {viewCounts[expandedProduct.id] || expandedProduct.views || 0} views</div>
             </div>
-            {/* Details */}
             <div className="p-4">
               <div className="flex justify-between items-start gap-3">
                 <div className="flex-1">
@@ -203,7 +253,6 @@ export default function HomeV11() {
                 </div>
                 <p className="text-[18px] font-bold text-black shrink-0">{expandedProduct.price}</p>
               </div>
-
               <div className="mt-4 grid grid-cols-3 gap-2">
                 <a href={`https://wa.me/${String(expandedProduct.whatsapp || "").replace(/[^0-9]/g, '')}?text=Hi, I'm interested in ${expandedProduct.title} on KSOM - ${window.location.origin}`} target="_blank" className="col-span-2 bg-[#25D366] text-white rounded-full py-3.5 text-[13px] font-bold text-center active:scale-95 transition-transform">💬 WhatsApp Seller</a>
                 <button onClick={() => toggleCart(expandedProduct.id)} className={`rounded-full py-3.5 text-[13px] font-bold border active:scale-95 transition-all ${cart.includes(expandedProduct.id) ? "bg-black text-white border-black" : "bg-black/5 text-black border-black/10"}`}>{cart.includes(expandedProduct.id) ? "✓ In Cart" : "🛒 Cart"}</button>
