@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabaseClient";
 
 function NotificationBell({ isDark }: { isDark: boolean }) {
   const [notifs, setNotifs] = useState<any[]>([]);
@@ -12,28 +12,48 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
     setNotifs(saved);
     const unread = saved.filter((n: any) => !n.read).length;
     setHasNew(unread > 0);
-    // Set app icon badge on load
     if (unread > 0 && 'setAppBadge' in navigator) {
       (navigator as any).setAppBadge(unread).catch(() => { });
     } else if (unread === 0 && 'clearAppBadge' in navigator) {
       (navigator as any).clearAppBadge().catch(() => { });
     }
 
+    const supabase = createClient();
     const channel = supabase.channel('ksom-notif-v11').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'products' }, (payload) => {
-      const newNotif = { id: Date.now().toString(), type: "product", title: "New product on KSOM", message: `${payload.new.title} • ${payload.new.price}`, created_at: new Date().toISOString(), read: false, image: payload.new.image_url };
+      const newNotif = { id: Date.now().toString(), type: "product", title: "New product on KSOM", message: `${(payload.new as any).title} • ${(payload.new as any).price}`, created_at: new Date().toISOString(), read: false, image: (payload.new as any).image_url };
       const current = JSON.parse(localStorage.getItem("ksm_notifications") || "[]");
       const updated = [newNotif, ...current].slice(0, 20);
       localStorage.setItem("ksm_notifications", JSON.stringify(updated));
       setNotifs(updated);
       setHasNew(true);
       const newUnread = updated.filter((n: any) => !n.read).length;
-      // 🔴 APP ICON BADGE - Like WhatsApp!
       if ('setAppBadge' in navigator) {
         (navigator as any).setAppBadge(newUnread).catch(() => { });
       }
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-    }).subscribe();
-    return () => { supabase.removeChannel(channel); };
+      // Dispatch event for other components (bottom nav badge)
+      window.dispatchEvent(new Event('ksom-notif-update'));
+    }).subscribe((status) => {
+      if (status === 'SUBSCRIBED') console.log('KSOM notif realtime ON');
+      if (status === 'CHANNEL_ERROR') console.warn('Realtime error - enable Realtime in Supabase > Database > products table');
+    });
+
+    // Listen for updates from other tabs/components
+    const handleUpdate = () => {
+      const s = JSON.parse(localStorage.getItem("ksm_notifications") || "[]");
+      setNotifs(s);
+      setHasNew(s.filter((n: any) => !n.read).length > 0);
+    };
+    window.addEventListener('ksom-notif-update', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    const interval = setInterval(handleUpdate, 2000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('ksom-notif-update', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      clearInterval(interval);
+    };
   }, []);
 
   const markRead = () => {
@@ -41,10 +61,10 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
     setNotifs(updated);
     localStorage.setItem("ksm_notifications", JSON.stringify(updated));
     setHasNew(false);
-    // Clear app icon badge
     if ('clearAppBadge' in navigator) {
       (navigator as any).clearAppBadge().catch(() => { });
     }
+    window.dispatchEvent(new Event('ksom-notif-update'));
   };
 
   const unread = notifs.filter((n: any) => !n.read).length;
@@ -62,7 +82,10 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
       {show && (
         <div className={`absolute bottom-[52px] left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-0 w-[320px] max-h-[420px] rounded-[20px] border shadow-[0_20px_60px_rgba(0,0,0,0.25)] overflow-hidden z-[100] backdrop-blur-xl ${isDark ? "bg-[#1e1e1e]/95 border-white/10" : "bg-white/95 border-black/10"}`}>
           <div className={`p-4 flex justify-between items-center border-b ${isDark ? "border-white/10" : "border-black/5"}`}><h3 className={`text-[13px] font-bold ${isDark ? "text-white" : "text-black"}`}>Notifications {unread > 0 && <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{unread}</span>}</h3><button onClick={() => setShow(false)} className={`w-7 h-7 rounded-full grid place-items-center ${isDark ? "bg-white/10 text-white" : "bg-black/5 text-black"}`}>✕</button></div>
-          <div className="overflow-y-auto max-h-[360px]">{notifs.length === 0 ? <div className="p-8 text-center"><p className={`text-[12px] ${isDark ? "text-white/60" : "text-black/50"}`}>No notifications yet</p></div> : notifs.map((n: any) => (<div key={n.id} className={`p-3.5 flex gap-3 border-b ${isDark ? "border-white/5" : "border-black/5"}`}>{n.image ? <img src={n.image} className="w-10 h-10 rounded-full object-cover" /> : <div className={`w-10 h-10 rounded-full grid place-items-center ${isDark ? "bg-white/10" : "bg-black/5"}`}>🛒</div>}<div className="flex-1"><p className={`text-[12px] ${isDark ? "text-white" : "text-black"}`}>{n.title} • {n.message}</p></div></div>))}</div>
+          <div className="overflow-y-auto max-h-[360px]">{notifs.length === 0 ? <div className="p-8 text-center"><p className={`text-[12px] ${isDark ? "text-white/60" : "text-black/50"}`}>No notifications yet</p><p className="text-[10px] opacity-40 mt-2">When someone posts new product, you will get badge here</p></div> : notifs.map((n: any) => (<div key={n.id} className={`p-3.5 flex gap-3 border-b ${isDark ? "border-white/5" : "border-black/5"}`}><img src={n.image} className="w-10 h-10 rounded-full object-cover" /><div className="flex-1"><p className={`text-[12px] ${isDark ? "text-white" : "text-black"}`}>{n.title} • {n.message}</p><p className="text-[9px] opacity-40 mt-1">{new Date(n.created_at).toLocaleTimeString()}</p></div></div>))}</div>
+          <div className="p-2 text-center border-t dark:border-white/10">
+            <button onClick={() => { localStorage.removeItem('ksm_notifications'); setNotifs([]); setHasNew(false); if ('clearAppBadge' in navigator) (navigator as any).clearAppBadge().catch(() => { }); }} className="text-[10px] opacity-50">Clear all</button>
+          </div>
         </div>
       )}
     </div>
@@ -85,12 +108,35 @@ export default function HomeV11() {
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const latestRef = useRef<HTMLDivElement>(null);
 
+  const [autoRefreshOn, setAutoRefreshOn] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+
+  const fetchProducts = async (silent = true) => {
+    const supabase = createClient();
+    const { data } = await supabase.from("products").select("*").order("created_at", { ascending: false }).limit(20);
+    if (data && data.length > 0) {
+      // If new products found, update
+      if (!silent || products.length === 0 || (data[0] && products[0] && data[0].id !== products[0].id)) {
+        setProducts(data);
+        setLastUpdate(new Date());
+        if (!silent && data.length > products.length) {
+          // New product detected - add notification
+          const newItems = data.filter((d: any) => !products.some((p: any) => p.id === d.id));
+          if (newItems.length > 0 && navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     document.title = "KSOM - KNUST Students Online Market";
     const m = window.matchMedia("(prefers-color-scheme: dark)");
     setTheme(m.matches ? "dark" : "light");
-    setCart(JSON.parse(localStorage.getItem("ksm_cart") || "[]"));
+    const savedCart = JSON.parse(localStorage.getItem("ksm_cart") || "[]");
+    setCart(savedCart);
     setViewCounts(JSON.parse(localStorage.getItem("ksm_views") || "{}"));
+
+    const supabase = createClient();
     supabase.from("products").select("*").order("created_at", { ascending: false }).limit(20).then(({ data }) => {
       if (data && data.length > 0) setProducts(data);
       else setProducts([
@@ -98,6 +144,7 @@ export default function HomeV11() {
         { id: "2", title: "Study Desk + Chair Combo", price: "GH₵ 380", location: "Kotei", image_url: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400", category: "Furniture", whatsapp: "233540000002", seller_name: "Kotei Furnitures", views: 89 },
         { id: "3", title: "Nike Air Max 270 · Size 42", price: "GH₵ 550", location: "Boadi", image_url: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400", category: "Shoes", whatsapp: "233540000003", seller_name: "Sneaker Hub", views: 201 },
       ]);
+      setLastUpdate(new Date());
     });
     supabase.from("adverts").select("*").eq("status", "approved").order("created_at", { ascending: false }).limit(10).then(({ data }) => { if (data) setAdverts(data); });
     supabase.from("collections").select("*").eq("status", "approved").order("created_at", { ascending: false }).limit(6).then(({ data }) => {
@@ -107,7 +154,39 @@ export default function HomeV11() {
         { id: "c2", seller_name: "Sneaker Hub", description: "Original Sneakers", image_url: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400", whatsapp: "233540000003" },
       ]);
     });
+
+    // Listen for cart changes
+    const onCartUpdate = () => {
+      setCart(JSON.parse(localStorage.getItem("ksm_cart") || "[]"));
+    };
+    window.addEventListener('storage', onCartUpdate);
+    window.addEventListener('ksom-cart-update', onCartUpdate);
+    return () => {
+      window.removeEventListener('storage', onCartUpdate);
+      window.removeEventListener('ksom-cart-update', onCartUpdate);
+    };
   }, []);
+
+  // 🔄 AUTO REFRESH EVERY 2 SECONDS
+  useEffect(() => {
+    if (!autoRefreshOn) return;
+    const interval = setInterval(() => {
+      fetchProducts(true);
+    }, 2000); // 2 seconds
+    return () => clearInterval(interval);
+  }, [autoRefreshOn, products]);
+
+  // Also refresh when tab becomes visible again
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchProducts(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => document.removeEventListener('visibilitychange', handleVisible);
+  }, [products]);
+
 
   useEffect(() => {
     const len = adverts.length > 0 ? adverts.length : 3;
@@ -117,11 +196,19 @@ export default function HomeV11() {
 
   const toggleCart = (id: string) => {
     const n = cart.includes(id) ? cart.filter(c => c !== id) : [...cart, id];
-    setCart(n); localStorage.setItem("ksm_cart", JSON.stringify(n));
+    setCart(n);
+    localStorage.setItem("ksm_cart", JSON.stringify(n));
+    // Dispatch event so other pages/tabs update instantly - NO REFRESH NEEDED
+    window.dispatchEvent(new Event('ksom-cart-update'));
+    window.dispatchEvent(new Event('storage'));
+    // Vibrate feedback
+    if (navigator.vibrate) navigator.vibrate(50);
   };
+
   const incrementView = (id: string) => {
     const newCounts = { ...viewCounts, [id]: (viewCounts[id] || Math.floor(Math.random() * 50 + 20)) + 1 };
     setViewCounts(newCounts); localStorage.setItem("ksm_views", JSON.stringify(newCounts));
+    const supabase = createClient();
     supabase.from("products").update({ views: newCounts[id] }).eq("id", id).then(() => { });
   };
   const shareProduct = async (p: any) => {
@@ -151,7 +238,7 @@ export default function HomeV11() {
   return (
     <div className={`${isDark ? "bg-[#0f0f0f] text-[#f5f3ef]" : "bg-[#fbfaf8] text-[#121212]"} min-h-screen pb-28 transition-colors`}>
       <div className={`sticky top-0 z-20 backdrop-blur-xl border-b ${isDark ? "bg-[#0f0f0f]/90 border-white/10" : "bg-[#fbfaf8]/90 border-black/10"}`}>
-        <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><img src="knust-logo.png" className="w-8 h-8 object-contain bg-white rounded-full p-0.5" /><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
+        <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-[#0f172a] grid place-items-center text-[#d4af37] font-extrabold text-[11px]">P</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
       </div>
 
       <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
@@ -176,51 +263,37 @@ export default function HomeV11() {
       <div className="mt-8 px-5"><div className="flex justify-between items-center mb-3"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Featured Collections — {collections.length}</h2><a href="/collections" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>Book a Spot →</a></div><div className="grid grid-cols-2 gap-3">{collections.slice(0, 6).map((c: any) => (<a key={c.id} href={`/seller/${encodeURIComponent(c.seller_name)}`} className={`rounded-[18px] overflow-hidden border relative h-[140px] group ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}><img src={c.image_url} className="w-full h-full object-cover group-active:scale-105 transition-transform duration-500" alt={c.seller_name} /><div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent"></div><div className="absolute top-2 left-2 bg-white text-black text-[8px] font-bold px-2 py-1 rounded-full flex items-center gap-1">✓ Verified</div><div className="absolute bottom-0 left-0 right-0 p-3"><p className="text-white text-[12px] font-bold leading-tight flex items-center gap-1">{c.seller_name} <span className="w-3 h-3 bg-[#0d9488] rounded-full grid place-items-center text-[8px]">✓</span></p><p className="text-white/70 text-[10px] mt-0.5 line-clamp-1">{c.description}</p><span className="mt-1.5 inline-block text-[9px] px-2 py-1 rounded-full bg-white text-black font-bold">View Collection →</span></div></a>))}</div></div>
 
       <div ref={latestRef} id="latest-section" className="mt-8 px-5 scroll-mt-24">
-        <div className="flex justify-between items-center mb-3"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {filtered.length} items • Tap to view</h2><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
+        <div className="flex justify-between items-center mb-3"><div className="flex items-center gap-2"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {filtered.length} items • Tap to view</h2>{lastUpdate && <span className="text-[9px] opacity-40 flex items-center gap-1"><span className={`w-1.5 h-1.5 rounded-full ${autoRefreshOn ? "bg-green-500 animate-pulse" : "bg-gray-400"}`}></span>{autoRefreshOn ? "Live • 2s" : "Paused"} • {lastUpdate.toLocaleTimeString()}</span>}</div><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
         <div className="grid gap-3">{filtered.slice(0, 3).map((p: any) => {
           const isVerified = verifiedSellers.has((p.seller_name || "").toLowerCase());
           const views = viewCounts[p.id] || p.views || Math.floor(Math.random() * 200 + 20);
           return (
             <div key={p.id} onClick={() => openProduct(p)} className={`flex gap-3 rounded-[18px] p-3 border relative cursor-pointer active:scale-[0.98] transition-transform select-none ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}>
               <div className="w-[88px] h-[88px] rounded-[12px] overflow-hidden bg-black/10 shrink-0 relative"><img src={p.image_url} className="w-full h-full object-cover pointer-events-none" alt="" /><div className="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> {views}</div></div>
-              <div className="flex-1 flex flex-col justify-between min-w-0"><div><div className="flex justify-between items-center"><div className="flex items-center gap-1"><span className={`text-[9px] px-2 py-0.5 rounded-full border ${isDark ? "bg-white/10 border-white/10" : "bg-black/5 border-black/10"}`}>{p.category}</span>{isVerified && <span className="w-4 h-4 bg-[#0d9488] rounded-full grid place-items-center text-white text-[9px]">✓</span>}</div><span className="text-[10px] opacity-40">{p.location}</span></div><p className="text-[13px] font-medium mt-1.5 leading-tight truncate flex items-center gap-1">{p.title} {isVerified && <span className="text-[#0d9488] text-[10px]">✓</span>}</p><div className="flex items-center gap-2 mt-1"><p className="text-[13px] font-bold">{p.price}</p><span className={`text-[9px] px-1.5 py-0.5 rounded-full ${isDark ? "bg-white/5 text-white/40" : "bg-black/5 text-black/40"}`}>{views} views • {views > 100 ? "🔥 Hot" : views > 50 ? "👀 Popular" : "New"}</span></div></div><div className="flex gap-1.5 mt-2"><button onClick={(e) => { e.stopPropagation(); window.open(`https://wa.me/${String(p.whatsapp || "").replace(/[^0-9]/g, '')}?text=Hi, I'm interested in ${p.title} on KSOM`, "_blank"); }} className="flex-1 bg-[#25D366] text-white text-[11px] font-bold py-2 rounded-full text-center">💬 WhatsApp</button><button onClick={(e) => { e.stopPropagation(); toggleCart(p.id); }} className={`px-3 rounded-full text-[11px] font-bold border active:scale-95 transition-all ${cart.includes(p.id) ? "bg-black text-white border-black" : isDark ? "bg-white/10 border-white/10 text-white" : "bg-black/5 border-black/10"}`}>{cart.includes(p.id) ? "✓" : "🛒"}</button><button onClick={(e) => { e.stopPropagation(); shareProduct(p); }} className={`w-9 h-9 rounded-full grid place-items-center border active:scale-90 transition-transform ${isDark ? "bg-white/10 border-white/10 text-white" : "bg-black/5 border-black/10"}`}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg></button></div></div>
+              <div className="flex-1 flex flex-col justify-between min-w-0"><div><div className="flex justify-between items-center"><div className="flex items-center gap-1"><span className={`text-[9px] px-2 py-0.5 rounded-full border ${isDark ? "bg-white/10 border-white/10" : "bg-black/5 border-black/10"}`}>{p.category}</span>{isVerified && <span className="w-4 h-4 bg-[#0d9488] rounded-full grid place-items-center text-white text-[9px]">✓</span>}</div><span className="text-[10px] opacity-40">{p.location}</span></div><p className="text-[13px] font-medium mt-1.5 leading-tight truncate flex items-center gap-1">{p.title} {isVerified && <span className="text-[#0d9488] text-[10px]">✓</span>}</p><div className="flex items-center gap-2 mt-1"><p className="text-[13px] font-bold">{p.price}</p><span className={`text-[9px] px-1.5 py-0.5 rounded-full ${isDark ? "bg-white/5 text-white/40" : "bg-black/5 text-black/40"}`}>{views} views • {views > 100 ? "🔥 Hot" : views > 50 ? "👀 Popular" : "New"}</span></div></div><div className="flex gap-1.5 mt-2"><button onClick={(e) => { e.stopPropagation(); window.open(`https://wa.me/${String(p.whatsapp || "").replace(/[^0-9]/g, '')}?text=Hi, I'm interested in ${p.title} on KSOM`, "_blank"); }} className="flex-1 bg-[#25D366] text-white text-[11px] font-bold py-2 rounded-full text-center">💬 WhatsApp</button><button onClick={(e) => { e.stopPropagation(); toggleCart(p.id); }} className={`px-3 rounded-full text-[11px] font-bold border active:scale-95 transition-all ${cart.includes(p.id) ? "bg-black text-white border-black dark:bg-white dark:text-black" : isDark ? "bg-white/10 border-white/10 text-white" : "bg-black/5 border-black/10"}`}>{cart.includes(p.id) ? "✓" : "🛒"}</button><button onClick={(e) => { e.stopPropagation(); shareProduct(p); }} className={`w-9 h-9 rounded-full grid place-items-center border active:scale-90 transition-transform ${isDark ? "bg-white/10 border-white/10 text-white" : "bg-black/5 border-black/10"}`}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg></button></div></div>
               <div className="absolute top-2 right-2 bg-black/60 backdrop-blur text-white text-[8px] px-2 py-1 rounded-full">Tap to expand 👆</div>
             </div>
           );
-        })}</div>
-        <div className="mt-4 flex gap-3 overflow-x-auto scrollbar-none pb-2">{filtered.slice(3, 6).map((p: any) => {
-          const views = viewCounts[p.id] || p.views || Math.floor(Math.random() * 100 + 10);
-          const isVerified = verifiedSellers.has((p.seller_name || "").toLowerCase());
-          return (<div key={p.id} onClick={() => openProduct(p)} className={`min-w-[150px] rounded-[16px] p-2.5 border relative cursor-pointer active:scale-95 transition-transform select-none ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}><div className="h-[100px] rounded-[12px] overflow-hidden bg-black/10 relative"><img src={p.image_url} className="w-full h-full object-cover pointer-events-none" alt="" /><div className="absolute top-1 right-1 bg-black/70 text-white text-[8px] px-1.5 py-0.5 rounded-full">👁 {views}</div>{isVerified && <div className="absolute top-1 left-1 w-4 h-4 bg-[#0d9488] rounded-full grid place-items-center text-white text-[8px]">✓</div>}</div><p className="text-[11px] font-medium mt-2 truncate flex items-center gap-1">{p.title} {isVerified && <span className="text-[#0d9488] text-[8px]">✓</span>}</p><p className="text-[11px] font-bold mt-0.5">{p.price}</p><div className="flex gap-1 mt-2"><button onClick={(e) => { e.stopPropagation(); window.open(`https://wa.me/${String(p.whatsapp || "").replace(/[^0-9]/g, '')}`, "_blank"); }} className="flex-1 bg-[#25D366] text-white text-[9px] font-bold py-1.5 rounded-full text-center">WA</button><button onClick={(e) => { e.stopPropagation(); toggleCart(p.id); }} className="flex-1 bg-black text-white text-[9px] py-1.5 rounded-full">Cart</button><button onClick={(e) => { e.stopPropagation(); shareProduct(p); }} className="w-7 h-7 rounded-full bg-black/5 grid place-items-center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle></svg></button></div></div>);
         })}</div>
       </div>
 
       <div className="mt-8 px-5"><div className="rounded-[18px] p-4 border flex justify-between items-center" style={{ background: "#0d9488", borderColor: "#0d9488" }}><div><p className="text-white text-[12px] font-bold">Want to advertise?</p><p className="text-white/80 text-[10px]">Let me run your ads for you</p></div><a href="/advertise" className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full">Contact Me →</a></div></div>
 
-      {/* BOTTOM HOMEBAR WITH SELL BUTTON + BADGE NUMBERS */}
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
         <div className={`flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] ${isDark ? "bg-[#1e1e1e]/90 border-white/10" : "bg-white/90 border-black/10"}`}>
           <a href="/" className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg> Home
           </a>
-
           <NotificationBell isDark={isDark} />
-
           <a href="/cart" className={`w-10 h-10 rounded-full grid place-items-center backdrop-blur relative border transition-all active:scale-90 ${isDark ? "bg-white/10 text-white border-white/10" : "bg-black/5 text-black border-black/5"}`}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-            {cart.length > 0 && <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-black dark:bg-white text-white dark:text-black text-[10px] rounded-full grid place-items-center px-1 font-bold border-2 border-white/20">{cart.length}</span>}
+            {cart.length > 0 && <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full grid place-items-center px-1 font-bold border-2 border-white dark:border-[#1e1e1e] animate-pulse">{cart.length}</span>}
           </a>
-
-          {/* SELL BUTTON - NEW! */}
-          <a href="/sell" className="w-10 h-10 rounded-full grid place-items-center bg-[#0d9488] text-white border border-[#0d9488] shadow-sm active:scale-90 transition-all font-bold text-[18px]">
-            +
-          </a>
-
+          <a href="/sell" className="w-10 h-10 rounded-full grid place-items-center bg-[#0d9488] text-white border border-[#0d9488] shadow-sm active:scale-90 transition-all font-bold text-[18px]">+</a>
           <button onClick={() => setTheme(isDark ? "light" : "dark")} className={`w-10 h-10 rounded-full grid place-items-center border backdrop-blur font-bold transition-all active:scale-90 ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>{isDark ? "☀" : "☾"}</button>
         </div>
       </div>
 
-      {/* AD EXPAND MODAL */}
       {expandedAd && (
         <div onClick={() => setExpandedAd(null)} className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md grid place-items-center p-4">
           <button onClick={() => setExpandedAd(null)} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur text-white grid place-items-center">✕</button>
@@ -231,7 +304,6 @@ export default function HomeV11() {
         </div>
       )}
 
-      {/* PRODUCT EXPAND MODAL */}
       {expandedProduct && (
         <div onClick={() => setExpandedProduct(null)} className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md grid place-items-center p-3 overflow-y-auto">
           <button onClick={() => setExpandedProduct(null)} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur text-white grid place-items-center">✕</button>
@@ -263,7 +335,6 @@ export default function HomeV11() {
                 </button>
                 <a href={`/seller/${encodeURIComponent(expandedProduct.seller_name)}`} className="bg-white border border-black/10 text-black rounded-full py-3 text-[12px] font-bold text-center active:scale-95 transition-transform">View Seller →</a>
               </div>
-              <p className="text-[10px] text-center text-black/30 mt-3">Tap outside to close • Pinch to zoom image</p>
             </div>
           </div>
         </div>
