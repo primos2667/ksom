@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "KSOM - KNUST Students Online Market | Buy & Sell on Campus",
@@ -11,12 +12,12 @@ export const metadata: Metadata = {
     description: "Buy & Sell on KNUST campus. Verified students, WhatsApp chat.",
     url: "https://ksom.vercel.app",
     siteName: "KSOM",
-    images: [{ url: "/knust-logo.png", width: 800, height: 600 }],
+    images: [{ url: "/ksom-icon.png", width: 512, height: 512 }],
     type: "website",
   },
   icons: {
-    icon: "/knust-logo.png",
-    apple: "/knust-logo.png",
+    icon: "/ksom-icon.png",
+    apple: "/ksom-icon.png",
   },
   appleWebApp: {
     capable: true,
@@ -35,9 +36,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased bg-white dark:bg-[#0f0f0f] transition-colors duration-300">
+        <ThemeProvider>{children}</ThemeProvider>
         {process.env.NODE_ENV === "production" && (
           <script dangerouslySetInnerHTML={{
             __html: `

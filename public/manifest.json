@@ -1,48 +1,22 @@
 {
-  "background_color": "#0f0f0f",
-  "description": "Buy & Sell on KNUST campus. Verified students, WhatsApp chat.",
+  "name": "Prima KSOM",
+  "short_name": "Prima KSOM",
+  "description": "Prima x KSOM - KNUST Students Online Market",
+  "start_url": "/",
   "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d9488",
   "icons": [
     {
-      "purpose": "any maskable",
-      "sizes": "192x192",
-      "src": "/knust-logo.png",
-      "type": "image/png"
-    },
-    {
-      "purpose": "any maskable",
+      "src": "/ksom-icon.png",
       "sizes": "512x512",
-      "src": "/knust-logo.png",
-      "type": "image/png"
-    }
-  ],
-  "name": "KSOM - KNUST Students Online Market",
-  "orientation": "portrait",
-  "short_name": "KSOM",
-  "shortcuts": [
-    {
-      "description": "Sell your item",
-      "icons": [
-        {
-          "sizes": "192x192",
-          "src": "/knust-logo.png"
-        }
-      ],
-      "name": "Sell Item",
-      "url": "/sell"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "description": "View cart",
-      "icons": [
-        {
-          "sizes": "192x192",
-          "src": "/knust-logo.png"
-        }
-      ],
-      "name": "Cart",
-      "url": "/cart"
+      "src": "/ksom-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
     }
-  ],
-  "start_url": "/",
-  "theme_color": "#0d9488"
+  ]
 }
