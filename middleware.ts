@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Simple middleware - no Supabase package needed!
-// Admin protection is done inside app/admin/page.tsx (client side)
-// This just allows all requests to pass, fixing the red underline error
-
+// Simple middleware - admin check done in admin page via env var
 export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }

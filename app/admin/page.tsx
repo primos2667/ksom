@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -11,13 +10,16 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("primos7662@gmail.com");
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPass, setLoginPass] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  const router = useRouter();
+
+  // 🔒 Admin email hidden in .env.local - not visible in code!
+  const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "primos7662@gmail.com";
 
   useEffect(() => {
+    setLoginEmail(ADMIN_EMAIL);
     checkAdmin();
   }, []);
 
@@ -30,9 +32,8 @@ export default function AdminPage() {
       return;
     }
     setUserEmail(user.email || "");
-    const allowed = ["primos7662@gmail.com"];
-    if (!allowed.includes(user.email?.toLowerCase() || "")) {
-      setLoginError(`Access denied! Only primos7662@gmail.com can access. You are ${user.email}`);
+    if (user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      setLoginError(`Access denied! Only admin can access. You are ${user.email}`);
       setIsLoggedIn(false);
       setLoading(false);
       return;
@@ -53,8 +54,8 @@ export default function AdminPage() {
     if (error) {
       setLoginError(error.message);
     } else {
-      if (data.user?.email?.toLowerCase() !== "primos7662@gmail.com") {
-        setLoginError(`This email is not admin! Only primos7662@gmail.com allowed. You are ${data.user?.email}`);
+      if (data.user?.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+        setLoginError(`This email is not admin! Only admin allowed. You are ${data.user?.email}`);
         await supabase.auth.signOut();
       } else {
         setIsLoggedIn(true);
@@ -121,19 +122,16 @@ export default function AdminPage() {
             <h1 className="text-[18px] font-bold dark:text-white">Admin Login</h1>
             <a href="/" className="text-[10px] px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black">Home</a>
           </div>
-          <p className="text-[11px] opacity-60 mb-4 dark:text-white/60">Only <b>primos7662@gmail.com</b> can login here. Use your Supabase password.</p>
+          <p className="text-[11px] opacity-60 mb-4 dark:text-white/60">🔒 Admin only - email hidden in .env</p>
 
           <input value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="Admin email" className="w-full px-4 py-3 rounded-full bg-[#f3f3f5] dark:bg-zinc-800 text-[13px] outline-none dark:text-white mb-3" />
-          <input value={loginPass} onChange={e => setLoginPass(e.target.value)} type="password" placeholder="Password (Supabase Auth)" className="w-full px-4 py-3 rounded-full bg-[#f3f3f5] dark:bg-zinc-800 text-[13px] outline-none dark:text-white" />
+          <input value={loginPass} onChange={e => setLoginPass(e.target.value)} type="password" placeholder="Password" className="w-full px-4 py-3 rounded-full bg-[#f3f3f5] dark:bg-zinc-800 text-[13px] outline-none dark:text-white" />
 
           {loginError && <p className="text-[11px] mt-3 p-2.5 rounded-[12px] bg-red-500 text-white text-center">{loginError}</p>}
 
           <button onClick={handleLogin} disabled={loginLoading} className="w-full mt-4 bg-black dark:bg-white text-white dark:text-black py-3.5 rounded-full text-[13px] font-bold">
             {loginLoading ? "Logging in..." : "Login as Admin →"}
           </button>
-
-          <p className="text-[10px] opacity-40 mt-4 text-center dark:text-white/40">First time? Go to Supabase → Auth → Users → Create user primos7662@gmail.com with password. Or use magic link.</p>
-          <a href="/" className="text-[11px] mt-3 block text-center underline dark:text-white/60">← Back to Market</a>
         </div>
       </div>
     );
@@ -146,8 +144,8 @@ export default function AdminPage() {
       <div className="flex justify-between items-center max-w-4xl mx-auto">
         <div>
           <h1 className="text-xl font-bold dark:text-white">Admin Panel</h1>
-          <p className="text-xs opacity-60 mt-1 dark:text-white/60">{userEmail} • {products.length} prods • {collections.length} colls • {adverts.length} ads</p>
-          <p className="text-[10px] text-green-600 font-bold mt-1">✅ Only primos7662@gmail.com</p>
+          <p className="text-xs opacity-60 mt-1 dark:text-white/60">{userEmail} • {products.length} prods • {collections.length} colls</p>
+          <p className="text-[10px] text-green-600 font-bold mt-1">🔒 Hidden admin email</p>
         </div>
         <div className="flex gap-2">
           <button onClick={handleLogout} className="text-xs px-4 py-2 rounded-full bg-red-500 text-white">Logout</button>
@@ -167,7 +165,6 @@ export default function AdminPage() {
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-medium truncate dark:text-white">{p.title}</p>
             <p className="text-[12px] font-bold mt-1 dark:text-white">{p.price} • {p.category}</p>
-            <p className="text-[10px] opacity-50 dark:text-white/50">{p.location} • {p.whatsapp} • {p.seller_name} • {new Date(p.created_at).toLocaleDateString()}</p>
             <div className="flex gap-2 mt-2">
               <a href={`https://wa.me/${String(p.whatsapp).replace(/[^0-9]/g, '')}`} target="_blank" className="text-[10px] px-3 py-1 rounded-full bg-[#25D366] text-white">WA</a>
               <button onClick={() => deleteProduct(p.id, p.image_url)} className="text-[10px] px-3 py-1 rounded-full bg-red-500 text-white">🗑️ Delete</button>
@@ -179,7 +176,6 @@ export default function AdminPage() {
           <img src={c.image_url} className="w-20 h-20 rounded-[12px] object-cover" />
           <div className="flex-1">
             <p className="text-[13px] font-bold dark:text-white">{c.seller_name}</p>
-            <p className="text-[11px] opacity-60 dark:text-white/60">{c.description}</p>
             <button onClick={() => deleteCollection(c.id)} className="mt-2 text-[10px] px-3 py-1 rounded-full bg-red-500 text-white">Delete</button>
           </div>
         </div>)}
