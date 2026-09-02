@@ -13,12 +13,12 @@ export const metadata: Metadata = {
     description: "Buy & Sell on KNUST campus. Verified students, WhatsApp chat.",
     url: "https://ksom.vercel.app",
     siteName: "Prima KSOM",
-    images: [{ url: "/ksom-icon.png", width: 512, height: 512 }],
+    images: [{ url: "/ksom-icon-512.png", width: 512, height: 512 }],
     type: "website",
   },
   icons: {
-    icon: "/ksom-icon.png",
-    apple: "/ksom-icon.png",
+    icon: "/ksom-icon-512.png",
+    apple: "/ksom-icon-512.png",
   },
   appleWebApp: {
     capable: true,
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0d9488",
+  themeColor: "#ff7a00",
 };
 
 export default function RootLayout({

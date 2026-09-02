@@ -4,19 +4,26 @@
   "description": "Prima x KSOM - KNUST Students Online Market",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0d9488",
+  "background_color": "#ff7a00",
+  "theme_color": "#ff7a00",
   "icons": [
     {
-      "src": "/ksom-icon.png",
+      "src": "/ksom-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/ksom-icon.png",
+      "src": "/ksom-icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ksom-icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
