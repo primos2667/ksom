@@ -4,7 +4,7 @@
   "description": "Prima x KSOM - KNUST Students Online Market",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ff7a00",
+  "background_color": "white",
   "theme_color": "#ff7a00",
   "icons": [
     {
