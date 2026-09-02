@@ -39,27 +39,36 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* BLOCKING SCRIPT - Sets theme BEFORE page renders - No flash! */}
+        {/* BLOCKING - NO FLASH - Sets theme BEFORE first paint */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  var saved = localStorage.getItem('ksom-theme');
-                  var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  var theme = saved || (sysDark ? 'dark' : 'light');
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
-                } catch(e) {}
+                  var s = localStorage.getItem('ksom-theme');
+                  var d = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var t = s || (d ? 'dark' : 'light');
+                  var h = document.documentElement;
+                  h.classList.remove('light','dark');
+                  h.classList.add(t);
+                  h.style.colorScheme = t;
+                } catch(e) {
+                  document.documentElement.classList.add('light');
+                }
               })();
             `,
           }}
         />
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          html { background: #fbfaf8; }
+          html.dark { background: #0f0f0f; }
+          /* Prevent white flash in dark mode */
+          html.dark body { background: #0f0f0f; }
+          html.light body { background: #fbfaf8; }
+        `}} />
       </head>
-      <body className="antialiased bg-white dark:bg-[#0f0f0f]">
+      <body className="antialiased bg-[#fbfaf8] dark:bg-[#0f0f0f] transition-none">
         <ThemeProvider>
           {children}
           <InstallPWA />

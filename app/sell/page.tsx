@@ -14,6 +14,10 @@ export default function SellPage() {
   const [hasCollection, setHasCollection] = useState(false);
   const [form, setForm] = useState({ title: "", price: "", category: "Phones", location: "", whatsapp: "", seller_name: "" });
 
+  // 🔒 Storage Guard States
+  const [storageStatus, setStorageStatus] = useState<{ blocked: boolean; count: number; max: number; percent: number; nextClean: string; daysToClean: number } | null>(null);
+  const [checkingStorage, setCheckingStorage] = useState(true);
+
   useEffect(() => {
     const seller = localStorage.getItem("ksm_is_seller");
     const id = localStorage.getItem("ksm_seller_id") || "";
@@ -21,16 +25,62 @@ export default function SellPage() {
       router.push("/login");
     } else {
       setIsSeller(true);
-      // Try to auto-fill seller name if they have collection
       const savedSellerName = localStorage.getItem("ksm_seller_name") || "";
       if (savedSellerName) {
         setForm(prev => ({ ...prev, seller_name: savedSellerName }));
         setHasCollection(true);
       }
+      checkStorageLimit();
     }
   }, [router]);
 
+  const checkStorageLimit = async () => {
+    try {
+      const supabase = createClient();
+      const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
+      const productCount = count || 0;
+
+      // SETTINGS: Max products before 80% full - Supabase free = 500MB, ~1000 products max with 150KB each
+      const MAX_PRODUCTS = 400; // 400 = 80% of 500 capacity, adjust as needed
+      const LIMIT_THRESHOLD = Math.floor(MAX_PRODUCTS * 0.8); // 80% = 320 products
+      const percent = Math.floor((productCount / MAX_PRODUCTS) * 100);
+      const blocked = productCount >= LIMIT_THRESHOLD;
+
+      // Calculate next 3-months clean date - fixed cycle: Jan 1, Apr 1, Jul 1, Oct 1
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const cleanDates = [
+        new Date(currentYear, 0, 1), // Jan 1
+        new Date(currentYear, 3, 1), // Apr 1
+        new Date(currentYear, 6, 1), // Jul 1
+        new Date(currentYear, 9, 1), // Oct 1
+      ];
+      // Find next clean date
+      let nextClean = cleanDates.find(d => d > now);
+      if (!nextClean) {
+        nextClean = new Date(currentYear + 1, 0, 1); // Next year Jan 1
+      }
+      const daysToClean = Math.ceil((nextClean.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      setStorageStatus({
+        blocked,
+        count: productCount,
+        max: MAX_PRODUCTS,
+        percent,
+        nextClean: nextClean.toLocaleDateString("en-GH", { day: "numeric", month: "long", year: "numeric" }),
+        daysToClean
+      });
+    } catch (e) {
+      console.error(e);
+    }
+    setCheckingStorage(false);
+  };
+
   const handleImageUpload = async (e: any) => {
+    if (storageStatus?.blocked) {
+      alert(`🚫 Storage 80% full! Next clean on ${storageStatus.nextClean}`);
+      return;
+    }
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
@@ -40,16 +90,13 @@ export default function SellPage() {
       const fileName = Date.now() + "-" + compressedFile.name.replace(/[^a-zA-Z0-9.-]/g, "");
       const { error } = await supabase.storage.from("product-images").upload(fileName, compressedFile);
       if (error) {
-        // Fallback to local preview without alert
         const local = URL.createObjectURL(compressedFile);
         setImageUrl(local);
       } else {
         const { data: pub } = supabase.storage.from("product-images").getPublicUrl(fileName);
         setImageUrl(pub.publicUrl);
-        // No popup! Silent success
       }
     } catch (err: any) {
-      // Silent error, just show local preview
       const local = URL.createObjectURL(file);
       setImageUrl(local);
     }
@@ -57,6 +104,10 @@ export default function SellPage() {
   };
 
   const submit = async () => {
+    if (storageStatus?.blocked) {
+      alert(`🚫 KSOM Storage is ${storageStatus.percent}% full! We stop at 80% to keep app fast.\n\n🧹 Next auto-clean: ${storageStatus.nextClean} (in ${storageStatus.daysToClean} days)\n\nOld products >90 days will be removed automatically.`);
+      return;
+    }
     if (!form.title || !form.price || !form.whatsapp) {
       alert("Fill title, price, WhatsApp");
       return;
@@ -65,10 +116,18 @@ export default function SellPage() {
       alert("Please upload image first");
       return;
     }
-    // seller_name is OPTIONAL now - no check!
 
     setLoading(true);
     const supabase = createClient();
+    // Double-check before insert (prevent race)
+    const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
+    if ((count || 0) >= Math.floor(400 * 0.8)) {
+      setLoading(false);
+      alert(`🚫 Just reached 80% limit! Please wait for next clean on ${storageStatus?.nextClean}`);
+      checkStorageLimit();
+      return;
+    }
+
     const payload: any = {
       title: form.title,
       price: form.price,
@@ -77,7 +136,6 @@ export default function SellPage() {
       whatsapp: form.whatsapp,
       image_url: imageUrl,
     };
-    // Only add seller_name if they have collection and filled it
     if (hasCollection && form.seller_name.trim()) {
       payload.seller_name = form.seller_name.trim();
       localStorage.setItem("ksm_seller_name", form.seller_name.trim());
@@ -88,8 +146,8 @@ export default function SellPage() {
     if (error) {
       alert(error.message);
     } else {
-      // Show nice success popup instead of ugly alert/confirm
       setShowSuccess(true);
+      checkStorageLimit();
     }
   };
 
@@ -118,59 +176,91 @@ export default function SellPage() {
         <a href="/" className="text-xs px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black">Home</a>
       </div>
 
-      <div className="mt-6 max-w-md mx-auto grid gap-3">
-        {/* IMAGE */}
-        <div className="rounded-[18px] border border-dashed border-black/20 dark:border-white/10 p-4 bg-white dark:bg-zinc-900 text-center">
-          {imageUrl ? <img src={imageUrl} className="w-full h-52 object-cover rounded-[12px] mb-3" /> : <div className="py-10 text-xs opacity-40 dark:text-white/40">No image selected</div>}
-          <label className={`inline-block px-5 py-2.5 rounded-full text-xs font-bold cursor-pointer ${uploading ? "bg-black/20 text-black/40" : "bg-black text-white dark:bg-white dark:text-black"}`}>
-            {uploading ? "Uploading..." : imageUrl ? "Change Image" : "📷 Upload Image"}
-            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
-          </label>
-          <p className="text-[10px] opacity-40 mt-2 dark:text-white/40">Auto-compressed</p>
-        </div>
-
-        <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Title e.g. iPhone 13 Neat" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
-        <input value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Price e.g. GH₵ 4200" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
-        <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white">
-          <option>Phones</option><option>Fashion</option><option>Electronics</option><option>Shoes</option><option>Furniture</option><option>Books</option><option>Other</option>
-        </select>
-        <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Location e.g. Ayeduase" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
-        <input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="WhatsApp e.g. 233540000001" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
-
-        {/* COLLECTION - OPTIONAL NOW! */}
-        <div className="p-3 rounded-[18px] bg-zinc-50 dark:bg-zinc-900 border border-black/5 dark:border-white/10">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={hasCollection} onChange={e => setHasCollection(e.target.checked)} className="w-4 h-4 rounded accent-[#0d9488]" />
-            <span className="text-[11px] font-bold dark:text-white">I have a collection with KSOM</span>
-          </label>
-          <p className="text-[10px] opacity-60 mt-1 dark:text-white/60">Only check if you booked a collection at /collections. Then your product will show on your seller page.</p>
-
-          {hasCollection && (
-            <div className="mt-3 p-3 rounded-[12px] bg-[#0d9488]/10 border border-[#0d9488]/20 animate-in">
-              <p className="text-[10px] font-bold text-[#0d9488]">🔗 Your Shop Name</p>
-              <input value={form.seller_name} onChange={e => setForm({ ...form, seller_name: e.target.value })} placeholder="Exact shop name e.g. Sneaker Hub" className="mt-2 w-full rounded-full px-4 py-3 border border-[#0d9488]/20 text-sm outline-none bg-white dark:bg-zinc-800 dark:text-white" />
-              <p className="text-[9px] opacity-50 mt-1 dark:text-white/40">Must match your collection name exactly!</p>
+      {/* 🔒 STORAGE STATUS BAR */}
+      {!checkingStorage && storageStatus && (
+        <div className="max-w-md mx-auto mt-4">
+          <div className={`rounded-[16px] p-3 border flex justify-between items-center ${storageStatus.blocked ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800" : storageStatus.percent > 60 ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800" : "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"}`}>
+            <div>
+              <p className={`text-[11px] font-bold ${storageStatus.blocked ? "text-red-600 dark:text-red-400" : storageStatus.percent > 60 ? "text-yellow-700 dark:text-yellow-400" : "text-green-700 dark:text-green-400"}`}>
+                {storageStatus.blocked ? `🚫 ${storageStatus.percent}% Full - Upload Paused` : `✅ ${storageStatus.percent}% Used - ${storageStatus.count}/${storageStatus.max}`}
+              </p>
+              <p className="text-[10px] opacity-60 mt-0.5 dark:text-white/60">
+                {storageStatus.blocked ? `Next clean: ${storageStatus.nextClean} (${storageStatus.daysToClean}d)` : `Next auto-clean: ${storageStatus.nextClean}`}
+              </p>
             </div>
-          )}
+            <div className={`w-10 h-10 rounded-full grid place-items-center text-[10px] font-bold ${storageStatus.blocked ? "bg-red-500 text-white" : storageStatus.percent > 60 ? "bg-yellow-500 text-white" : "bg-green-500 text-white"}`}>
+              {storageStatus.percent}%
+            </div>
+          </div>
         </div>
+      )}
 
-        <button onClick={submit} disabled={loading} className="w-full bg-black dark:bg-white text-white dark:text-black rounded-full py-3.5 text-sm font-bold mt-2 active:scale-95 transition-transform">{loading ? "Posting..." : "Post to KSOM"}</button>
-      </div>
+      {/* 🚫 BLOCKED SCREEN */}
+      {storageStatus?.blocked ? (
+        <div className="max-w-md mx-auto mt-6">
+          <div className="rounded-[24px] bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-800 p-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 grid place-items-center text-2xl mx-auto">🚫</div>
+            <h2 className="text-[16px] font-bold mt-4 dark:text-white">Upload Paused - 80% Full</h2>
+            <p className="text-[12px] opacity-60 mt-2 dark:text-white/60">
+              KSOM is free, so we limit to <b>{storageStatus.max} products</b> to keep it fast for everyone.<br />
+              We reached <b>{storageStatus.count} products ({storageStatus.percent}%)</b>.
+            </p>
+            <div className="mt-4 p-3 rounded-[12px] bg-[#fbfaf8] dark:bg-zinc-800 text-left">
+              <p className="text-[11px] font-bold dark:text-white">🧹 Next Auto-Clean:</p>
+              <p className="text-[13px] font-bold text-[#0d9488] mt-1">{storageStatus.nextClean}</p>
+              <p className="text-[10px] opacity-60 mt-1 dark:text-white/60">In {storageStatus.daysToClean} days, products older than 90 days will be auto-deleted to make space. Your new products can be posted after that!</p>
+            </div>
+            <p className="text-[10px] opacity-40 mt-4 dark:text-white/40">Tip: Delete your old sold items in /admin to free space faster!</p>
+            <a href="/" className="mt-5 inline-block w-full bg-black dark:bg-white text-white dark:text-black rounded-full py-3 text-[13px] font-bold">Back to Market</a>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-6 max-w-md mx-auto grid gap-3">
+          <div className="rounded-[18px] border border-dashed border-black/20 dark:border-white/10 p-4 bg-white dark:bg-zinc-900 text-center">
+            {imageUrl ? <img src={imageUrl} className="w-full h-52 object-cover rounded-[12px] mb-3" /> : <div className="py-10 text-xs opacity-40 dark:text-white/40">No image selected</div>}
+            <label className={`inline-block px-5 py-2.5 rounded-full text-xs font-bold cursor-pointer ${uploading ? "bg-black/20 text-black/40" : "bg-black text-white dark:bg-white dark:text-black"}`}>
+              {uploading ? "Uploading..." : imageUrl ? "Change Image" : "📷 Upload Image"}
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+            </label>
+            <p className="text-[10px] opacity-40 mt-2 dark:text-white/40">Auto-compressed to ~150KB</p>
+          </div>
 
-      {/* NICE SUCCESS POPUP */}
+          <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Title e.g. iPhone 13 Neat" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
+          <input value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Price e.g. GH₵ 4200" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
+          <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white">
+            <option>Phones</option><option>Fashion</option><option>Electronics</option><option>Shoes</option><option>Furniture</option><option>Books</option><option>Other</option>
+          </select>
+          <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Location e.g. Ayeduase" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
+          <input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="WhatsApp e.g. 233540000001" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
+
+          <div className="p-3 rounded-[18px] bg-zinc-50 dark:bg-zinc-900 border border-black/5 dark:border-white/10">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={hasCollection} onChange={e => setHasCollection(e.target.checked)} className="w-4 h-4 rounded accent-[#0d9488]" />
+              <span className="text-[11px] font-bold dark:text-white">I have a collection with KSOM</span>
+            </label>
+            <p className="text-[10px] opacity-60 mt-1 dark:text-white/60">Only check if you booked a collection at /collections.</p>
+            {hasCollection && (
+              <div className="mt-3 p-3 rounded-[12px] bg-[#0d9488]/10 border border-[#0d9488]/20">
+                <p className="text-[10px] font-bold text-[#0d9488]">🔗 Your Shop Name</p>
+                <input value={form.seller_name} onChange={e => setForm({ ...form, seller_name: e.target.value })} placeholder="Exact shop name e.g. Sneaker Hub" className="mt-2 w-full rounded-full px-4 py-3 border border-[#0d9488]/20 text-sm outline-none bg-white dark:bg-zinc-800 dark:text-white" />
+              </div>
+            )}
+          </div>
+
+          <button onClick={submit} disabled={loading} className="w-full bg-black dark:bg-white text-white dark:text-black rounded-full py-3.5 text-sm font-bold mt-2 active:scale-95 transition-transform">{loading ? "Posting..." : "Post to KSOM"}</button>
+        </div>
+      )}
+
       {showSuccess && (
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm grid place-items-center p-5">
-          <div className="w-full max-w-[320px] bg-white dark:bg-zinc-900 rounded-[24px] p-6 text-center shadow-2xl animate-in">
+          <div className="w-full max-w-[320px] bg-white dark:bg-zinc-900 rounded-[24px] p-6 text-center shadow-2xl">
             <div className="w-16 h-16 rounded-full bg-green-500 text-white grid place-items-center text-2xl mx-auto mb-4">✓</div>
             <h2 className="text-[18px] font-bold dark:text-white">Posted to KSOM!</h2>
-            <p className="text-[12px] opacity-60 mt-2 dark:text-white/60">Your product is now live on homepage and will notify all users 🔔</p>
-
+            <p className="text-[12px] opacity-60 mt-2 dark:text-white/60">Live now - will notify users 🔔</p>
             <div className="mt-6 grid gap-2">
-              <button onClick={handleShareWhatsApp} className="w-full bg-[#25D366] text-white rounded-full py-3.5 text-[13px] font-bold active:scale-95 transition-transform">📲 Share to WhatsApp Status</button>
-              <button onClick={handleDone} className="w-full bg-black dark:bg-white text-white dark:text-black rounded-full py-3.5 text-[13px] font-bold active:scale-95 transition-transform">Done → Homepage</button>
+              <button onClick={handleShareWhatsApp} className="w-full bg-[#25D366] text-white rounded-full py-3.5 text-[13px] font-bold">📲 Share to WhatsApp</button>
+              <button onClick={handleDone} className="w-full bg-black dark:bg-white text-white dark:text-black rounded-full py-3.5 text-[13px] font-bold">Done → Homepage</button>
             </div>
-
-            <p className="text-[10px] opacity-30 mt-4 dark:text-white/30">Tap outside to close</p>
           </div>
         </div>
       )}

@@ -95,7 +95,16 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
 const WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/JDF0gdFMiQQKz9GslNGWav";
 
 export default function HomeV11() {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "dark";
+    try {
+      const saved = localStorage.getItem("ksom-theme") as "light" | "dark" | null;
+      if (saved) return saved;
+      if (document.documentElement.classList.contains("dark")) return "dark";
+      if (document.documentElement.classList.contains("light")) return "light";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch { return "dark"; }
+  });
   const [ad, setAd] = useState(0);
   const [active, setActive] = useState("All");
   const [products, setProducts] = useState<any[]>([]);
@@ -107,37 +116,117 @@ export default function HomeV11() {
   const [expandedProduct, setExpandedProduct] = useState<any>(null);
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const latestRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const [autoRefreshOn, setAutoRefreshOn] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [visibleCount, setVisibleCount] = useState(20);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreDB, setHasMoreDB] = useState(true);
+  const [totalFetched, setTotalFetched] = useState(100);
 
-  const fetchProducts = async (silent = true) => {
+  const fetchProducts = async (silent = true, append = false, limitCount = 100) => {
     const supabase = createClient();
-    const { data } = await supabase.from("products").select("*").order("created_at", { ascending: false }).limit(20);
-    if (data && data.length > 0) {
-      // If new products found, update
-      if (!silent || products.length === 0 || (data[0] && products[0] && data[0].id !== products[0].id)) {
-        setProducts(data);
-        setLastUpdate(new Date());
-        if (!silent && data.length > products.length) {
-          // New product detected - add notification
-          const newItems = data.filter((d: any) => !products.some((p: any) => p.id === d.id));
-          if (newItems.length > 0 && navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    const from = append ? products.length : 0;
+    const to = from + limitCount - 1;
+    const { data } = await supabase.from("products").select("*").order("created_at", { ascending: false }).range(from, to);
+    if (data) {
+      if (append) {
+        if (data.length > 0) {
+          setProducts(prev => [...prev, ...data]);
+          setTotalFetched(prev => prev + data.length);
+          if (data.length < limitCount) setHasMoreDB(false);
+        } else {
+          setHasMoreDB(false);
+        }
+      } else if (data.length > 0) {
+        if (!silent || products.length === 0 || (data[0] && products[0] && data[0].id !== products[0].id)) {
+          setProducts(data);
+          setTotalFetched(data.length);
+          setHasMoreDB(data.length >= limitCount);
+          setLastUpdate(new Date());
+          if (!silent && data.length > products.length) {
+            const newItems = data.filter((d: any) => !products.some((p: any) => p.id === d.id));
+            if (newItems.length > 0 && navigator.vibrate) navigator.vibrate([100, 50, 100]);
+          }
         }
       }
+    }
+    setIsLoadingMore(false);
+  };
+
+  const loadMoreProducts = async (currentFilteredLength: number) => {
+    if (isLoadingMore) return;
+    // First show more from already fetched
+    if (visibleCount < currentFilteredLength) {
+      setVisibleCount(v => v + 20);
+      return;
+    }
+    // If we have shown all fetched but DB has more, fetch next batch like Jumia
+    if (hasMoreDB && visibleCount >= currentFilteredLength) {
+      setIsLoadingMore(true);
+      await fetchProducts(true, true, 40);
+      setVisibleCount(v => v + 20);
     }
   };
 
   useEffect(() => {
     document.title = "KSOM - KNUST Students Online Market";
+    // Theme already set synchronously in useState - don't override! Just sync html class
     const m = window.matchMedia("(prefers-color-scheme: dark)");
-    setTheme(m.matches ? "dark" : "light");
+    const saved = localStorage.getItem("ksom-theme");
+    if (!saved) {
+      setTheme(m.matches ? "dark" : "light");
+    }
     const savedCart = JSON.parse(localStorage.getItem("ksm_cart") || "[]");
     setCart(savedCart);
     setViewCounts(JSON.parse(localStorage.getItem("ksm_views") || "{}"));
 
+    // 🧹 AUTO-CLEAN CHECK - runs for every visitor, even if you forget!
+    const checkAndAutoClean = async () => {
+      try {
+        const lastClean = localStorage.getItem("ksom_last_auto_clean");
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        // Only check once per day per browser to save queries
+        if (lastClean === todayStr) return;
+
+        const supabase = createClient();
+        // Check if today is clean day (Jan 1, Apr 1, Jul 1, Oct 1) OR if storage is over 85%
+        const isCleanDay = (now.getDate() === 1 && [0, 3, 6, 9].includes(now.getMonth()));
+        const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
+        const isOverLimit = (count || 0) >= 350; // 87.5% of 400
+
+        if (isCleanDay || isOverLimit) {
+          console.log("🧹 Auto-clean triggered!", { isCleanDay, isOverLimit, count });
+          // Call the auto-clean function that deletes DB + Storage
+          const { data: oldProducts } = await supabase.from("products").select("id, image_url").lt("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
+          if (oldProducts && oldProducts.length > 0) {
+            // Delete from storage
+            const paths = oldProducts.map((p: any) => p.image_url?.includes("product-images") ? p.image_url.split("/product-images/")[1]?.split("?")[0] : null).filter(Boolean);
+            if (paths.length > 0) await supabase.storage.from("product-images").remove(paths);
+            // Delete from DB - this will work because RLS allows delete for old products via function
+            const { error } = await supabase.from("products").delete().lt("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
+            if (!error) {
+              console.log(`✅ Auto-cleaned ${oldProducts.length} old products!`);
+              localStorage.setItem("ksom_last_auto_clean", todayStr);
+              // Show notification to user
+              if (Notification && Notification.permission === "granted") {
+                new Notification("KSOM Auto-Cleaned", { body: `Cleaned ${oldProducts.length} old items. More space now!` });
+              }
+            }
+          } else {
+            localStorage.setItem("ksom_last_auto_clean", todayStr);
+          }
+        }
+      } catch (e) {
+        console.log("Auto-clean check failed (RLS may block, that's ok - admin button still works)", e);
+      }
+    };
+    checkAndAutoClean();
+
     const supabase = createClient();
-    supabase.from("products").select("*").order("created_at", { ascending: false }).limit(20).then(({ data }) => {
+    supabase.from("products").select("*").order("created_at", { ascending: false }).limit(100).then(({ data }) => {
       if (data && data.length > 0) setProducts(data);
       else setProducts([
         { id: "1", title: "iPhone 13 128GB · Neat", price: "GH₵ 4,200", location: "Ayeduase", image_url: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400", category: "Phones", whatsapp: "233540000001", seller_name: "Prince Phones", views: 124 },
@@ -146,7 +235,7 @@ export default function HomeV11() {
       ]);
       setLastUpdate(new Date());
     });
-    supabase.from("adverts").select("*").eq("status", "approved").order("created_at", { ascending: false }).limit(10).then(({ data }) => { if (data) setAdverts(data); });
+    supabase.from("adverts").select("*").eq("status", "approved").order("created_at", { ascending: false }).limit(3).then(({ data }) => { if (data) setAdverts(data); });
     supabase.from("collections").select("*").eq("status", "approved").order("created_at", { ascending: false }).limit(6).then(({ data }) => {
       if (data && data.length > 0) setCollections(data);
       else setCollections([
@@ -167,12 +256,12 @@ export default function HomeV11() {
     };
   }, []);
 
-  // 🔄 AUTO REFRESH EVERY 2 SECONDS
+  // 🔄 AUTO REFRESH EVERY 10 SECONDS (Jumia style - less frequent for performance)
   useEffect(() => {
     if (!autoRefreshOn) return;
     const interval = setInterval(() => {
       fetchProducts(true);
-    }, 2000); // 2 seconds
+    }, 10000);
     return () => clearInterval(interval);
   }, [autoRefreshOn, products]);
 
@@ -235,13 +324,28 @@ export default function HomeV11() {
   let filtered = active === "All" ? products : products.filter(p => p.category === active || p.category?.toLowerCase().includes(active.toLowerCase()));
   if (search) filtered = filtered.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
 
+  // ♾️ JUMIA-STYLE INFINITE SCROLL - auto load when bottom visible (NOW after filtered is defined)
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && (filtered.length > visibleCount || hasMoreDB)) {
+          loadMoreProducts(filtered.length);
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" }
+    );
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [filtered.length, visibleCount, hasMoreDB, isLoadingMore]);
+
   return (
     <div className={`${isDark ? "bg-[#0f0f0f] text-[#f5f3ef]" : "bg-[#fbfaf8] text-[#121212]"} min-h-screen pb-28 transition-colors`}>
       <div className={`sticky top-0 z-20 backdrop-blur-xl border-b ${isDark ? "bg-[#0f0f0f]/90 border-white/10" : "bg-[#fbfaf8]/90 border-black/10"}`}>
         <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-[#0f172a] grid place-items-center text-[#d4af37] font-extrabold text-[11px]">P</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
       </div>
 
-      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
+      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
 
       <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{search}&quot; — {filtered.length} found</p>}</div>
 
@@ -264,7 +368,7 @@ export default function HomeV11() {
 
       <div ref={latestRef} id="latest-section" className="mt-8 px-5 scroll-mt-24">
         <div className="flex justify-between items-center mb-3"><div className="flex items-center gap-2"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {filtered.length} items • Tap to view</h2>{lastUpdate && <span className="text-[9px] opacity-40 flex items-center gap-1"><span className={`w-1.5 h-1.5 rounded-full ${autoRefreshOn ? "bg-green-500 animate-pulse" : "bg-gray-400"}`}></span>{autoRefreshOn ? "Live • 2s" : "Paused"} • {lastUpdate.toLocaleTimeString()}</span>}</div><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
-        <div className="grid gap-3">{filtered.slice(0, 3).map((p: any) => {
+        <div className="grid gap-3">{filtered.slice(0, visibleCount).map((p: any) => {
           const isVerified = verifiedSellers.has((p.seller_name || "").toLowerCase());
           const views = viewCounts[p.id] || p.views || Math.floor(Math.random() * 200 + 20);
           return (
@@ -274,7 +378,28 @@ export default function HomeV11() {
               <div className="absolute top-2 right-2 bg-black/60 backdrop-blur text-white text-[8px] px-2 py-1 rounded-full">Tap to expand 👆</div>
             </div>
           );
-        })}</div>
+        })}
+        </div>
+        {/* ♾️ Jumia-style infinite loader */}
+        <div ref={loadMoreRef} className="mt-5 flex flex-col items-center gap-3 py-4">
+          {isLoadingMore ? (
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin dark:border-white/20 dark:border-t-white"></div>
+              <span className={`text-[12px] ${isDark ? "text-white/60" : "text-black/60"}`}>Loading more products...</span>
+            </div>
+          ) : filtered.length > visibleCount ? (
+            <div className={`text-[11px] ${isDark ? "text-white/40" : "text-black/40"}`}>Scroll for more • {filtered.length - visibleCount} more</div>
+          ) : hasMoreDB ? (
+            <div className={`text-[11px] ${isDark ? "text-white/40" : "text-black/40"}`}>Fetching more from server...</div>
+          ) : filtered.length > 0 ? (
+            <div className={`text-[11px] flex items-center gap-2 ${isDark ? "text-white/40" : "text-black/40"}`}>
+              <span>✓</span> You've seen all {filtered.length} items
+            </div>
+          ) : null}
+        </div>
+        {filtered.length === 0 && (
+          <div className="text-center py-10 opacity-50"><p className="text-[13px]">No items in this category</p></div>
+        )}
       </div>
 
       <div className="mt-8 px-5"><div className="rounded-[18px] p-4 border flex justify-between items-center" style={{ background: "#0d9488", borderColor: "#0d9488" }}><div><p className="text-white text-[12px] font-bold">Want to advertise?</p><p className="text-white/80 text-[10px]">Let me run your ads for you</p></div><a href="/advertise" className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full">Contact Me →</a></div></div>

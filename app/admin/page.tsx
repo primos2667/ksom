@@ -79,6 +79,61 @@ export default function AdminPage() {
     setLoading(false);
   };
 
+  const [cleaning, setCleaning] = useState(false);
+  const [oldCount, setOldCount] = useState(0);
+  const [storageInfo, setStorageInfo] = useState<{ count: number, percent: number, nextClean: string } | null>(null);
+
+  useEffect(() => {
+    if (isLoggedIn) checkOldProducts();
+  }, [isLoggedIn, products]);
+
+  const checkOldProducts = async () => {
+    const supabase = createClient();
+    const { count } = await supabase.from("products").select("*", { count: "exact", head: true }).lt("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
+    setOldCount(count || 0);
+    const total = products.length;
+    const MAX = 400;
+    const percent = Math.floor((total / MAX) * 100);
+    const now = new Date();
+    const cleanDates = [new Date(now.getFullYear(), 0, 1), new Date(now.getFullYear(), 3, 1), new Date(now.getFullYear(), 6, 1), new Date(now.getFullYear(), 9, 1)];
+    let next = cleanDates.find(d => d > now) || new Date(now.getFullYear() + 1, 0, 1);
+    setStorageInfo({ count: total, percent, nextClean: next.toLocaleDateString("en-GH", { day: "numeric", month: "long", year: "numeric" }) });
+  };
+
+  const cleanOldProducts = async () => {
+    if (!confirm(`🧹 Delete ${oldCount} products older than 90 days? This will delete from DATABASE + STORAGE! Cannot undo!`)) return;
+    setCleaning(true);
+    const supabase = createClient();
+    try {
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: oldProducts } = await supabase.from("products").select("id, image_url").lt("created_at", cutoff);
+      if (!oldProducts || oldProducts.length === 0) {
+        alert("No old products found!");
+        setCleaning(false);
+        return;
+      }
+      // 1. Delete images from storage first
+      const imagePaths = oldProducts.map((p: any) => {
+        if (p.image_url?.includes("product-images")) {
+          return p.image_url.split("/product-images/")[1]?.split("?")[0];
+        }
+        return null;
+      }).filter(Boolean);
+      if (imagePaths.length > 0) {
+        await supabase.storage.from("product-images").remove(imagePaths);
+      }
+      // 2. Delete from database
+      const { error } = await supabase.from("products").delete().lt("created_at", cutoff);
+      if (error) throw error;
+      alert(`✅ Cleaned ${oldProducts.length} old products from DATABASE + STORAGE! Free space saved!`);
+      loadAll();
+      checkOldProducts();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    }
+    setCleaning(false);
+  };
+
   const deleteProduct = async (id: string, image_url: string) => {
     if (!confirm("🗑️ Delete this product?")) return;
     const supabase = createClient();
@@ -144,14 +199,31 @@ export default function AdminPage() {
       <div className="flex justify-between items-center max-w-4xl mx-auto">
         <div>
           <h1 className="text-xl font-bold dark:text-white">Admin Panel</h1>
-          <p className="text-xs opacity-60 mt-1 dark:text-white/60">{userEmail} • {products.length} prods • {collections.length} colls</p>
-          <p className="text-[10px] text-green-600 font-bold mt-1">🔒 Hidden admin email</p>
+          <p className="text-xs opacity-60 mt-1 dark:text-white/60">{userEmail} • {products.length} prods • {collections.length} colls • {storageInfo?.percent || 0}% full</p>
+          <p className="text-[10px] text-green-600 font-bold mt-1">🔒 Next clean: {storageInfo?.nextClean} • {oldCount} old (over 90d)</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={cleanOldProducts} disabled={cleaning || oldCount === 0} className={`text-xs px-4 py-2 rounded-full font-bold ${cleaning ? "bg-gray-400 text-white" : oldCount > 0 ? "bg-[#0d9488] text-white" : "bg-black/10 text-black/40 dark:bg-white/10 dark:text-white/40"}`}>
+            {cleaning ? "Cleaning..." : `🧹 Clean ${oldCount} old`}
+          </button>
           <button onClick={handleLogout} className="text-xs px-4 py-2 rounded-full bg-red-500 text-white">Logout</button>
           <a href="/" className="text-xs px-4 py-2 rounded-full bg-black text-white dark:bg-white dark:text-black">Home</a>
         </div>
       </div>
+
+      {/* Storage Bar */}
+      {storageInfo && (
+        <div className="max-w-4xl mx-auto mt-4 p-3 rounded-[16px] border flex justify-between items-center"
+          style={{ background: storageInfo.percent >= 80 ? "#fef2f2" : storageInfo.percent >= 60 ? "#fefce8" : "#f0fdf4", borderColor: storageInfo.percent >= 80 ? "#fecaca" : storageInfo.percent >= 60 ? "#fde68a" : "#bbf7d0" }}>
+          <div>
+            <p className="text-[12px] font-bold" style={{ color: storageInfo.percent >= 80 ? "#dc2626" : storageInfo.percent >= 60 ? "#ca8a04" : "#15803d" }}>
+              {storageInfo.percent >= 80 ? `🚫 ${storageInfo.percent}% FULL - Uploads Paused` : `📦 ${storageInfo.percent}% Used (${storageInfo.count}/400)`}
+            </p>
+            <p className="text-[10px] opacity-60">Auto-clean every 3 months (Jan, Apr, Jul, Oct) • Deletes DB + Storage</p>
+          </div>
+          <div className="text-[20px]">{storageInfo.percent >= 80 ? "🚫" : storageInfo.percent >= 60 ? "⚠️" : "✅"}</div>
+        </div>
+      )}
 
       <div className="max-w-4xl mx-auto mt-6 flex gap-2">
         <button onClick={() => setTab("products")} className={`px-4 py-2 rounded-full text-xs font-bold border ${tab === "products" ? "bg-black text-white border-black dark:bg-white dark:text-black" : "bg-white text-black/60 border-black/10 dark:bg-zinc-900 dark:text-white/60"}`}>Products ({products.length})</button>

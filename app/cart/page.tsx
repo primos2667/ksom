@@ -5,11 +5,18 @@ import { createClient } from "@/lib/supabaseClient";
 export default function CartPage() {
   const [cartIds, setCartIds] = useState<string[]>([]);
   const [products, setProducts] = useState<any[]>([]);
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "dark";
+    try {
+      const s = localStorage.getItem("ksom-theme");
+      if (s) return s;
+      if (document.documentElement.classList.contains("dark")) return "dark";
+      if (document.documentElement.classList.contains("light")) return "light";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch { return "dark"; }
+  });
 
   useEffect(() => {
-    const m = window.matchMedia("(prefers-color-scheme: dark)");
-    setTheme(m.matches ? "dark" : "light");
     loadCart();
 
     const onUpdate = () => loadCart();
