@@ -155,15 +155,16 @@ export default function HomeV11() {
     setIsLoadingMore(false);
   };
 
-  const loadMoreProducts = async (currentFilteredLength: number) => {
+  const loadMoreProducts = async (currentFilteredLength?: number) => {
+    const len = currentFilteredLength ?? filtered.length;
     if (isLoadingMore) return;
     // First show more from already fetched
-    if (visibleCount < currentFilteredLength) {
+    if (visibleCount < len) {
       setVisibleCount(v => v + 20);
       return;
     }
     // If we have shown all fetched but DB has more, fetch next batch like Jumia
-    if (hasMoreDB && visibleCount >= currentFilteredLength) {
+    if (hasMoreDB && visibleCount >= len) {
       setIsLoadingMore(true);
       await fetchProducts(true, true, 40);
       setVisibleCount(v => v + 20);
@@ -265,6 +266,8 @@ export default function HomeV11() {
     return () => clearInterval(interval);
   }, [autoRefreshOn, products]);
 
+  // ♾️ infinite scroll moved after filtered definition
+
   // Also refresh when tab becomes visible again
   useEffect(() => {
     const handleVisible = () => {
@@ -295,7 +298,7 @@ export default function HomeV11() {
   };
 
   const incrementView = (id: string) => {
-    const newCounts = { ...viewCounts, [id]: (viewCounts[id] || Math.floor(Math.random() * 50 + 20)) + 1 };
+    const newCounts = { ...viewCounts, [id]: (viewCounts[id] || 0) + 1 };
     setViewCounts(newCounts); localStorage.setItem("ksm_views", JSON.stringify(newCounts));
     const supabase = createClient();
     supabase.from("products").update({ views: newCounts[id] }).eq("id", id).then(() => { });
@@ -324,20 +327,44 @@ export default function HomeV11() {
   let filtered = active === "All" ? products : products.filter(p => p.category === active || p.category?.toLowerCase().includes(active.toLowerCase()));
   if (search) filtered = filtered.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
 
-  // ♾️ JUMIA-STYLE INFINITE SCROLL - auto load when bottom visible (NOW after filtered is defined)
+  // 🛡️ Anti-domination: Shuffle so same seller doesn't appear 5 times in a row (fair feed like Jumia)
+  const fairFiltered = (() => {
+    const result: any[] = [];
+    const sellerLastSeen: Record<string, number> = {};
+    const queue = [...filtered];
+    // Simple fair algorithm: don't allow same whatsapp 3 times in last 6 items
+    while (queue.length > 0) {
+      let idx = 0;
+      for (let i = 0; i < queue.length; i++) {
+        const wa = String(queue[i].whatsapp || "").replace(/[^0-9]/g, '').slice(-9);
+        const lastPos = sellerLastSeen[wa] ?? -10;
+        if (result.length - lastPos > 2) { // at least 2 other items between same seller
+          idx = i;
+          break;
+        }
+      }
+      const picked = queue.splice(idx, 1)[0];
+      const wa = String(picked.whatsapp || "").replace(/[^0-9]/g, '').slice(-9);
+      sellerLastSeen[wa] = result.length;
+      result.push(picked);
+    }
+    return result;
+  })();
+
+  // ♾️ JUMIA-STYLE INFINITE SCROLL - auto load when bottom visible (after filtered defined)
   useEffect(() => {
     if (!loadMoreRef.current) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && (filtered.length > visibleCount || hasMoreDB)) {
-          loadMoreProducts(filtered.length);
+        if (entries[0].isIntersecting && (fairFiltered.length > visibleCount || hasMoreDB)) {
+          loadMoreProducts(fairFiltered.length);
         }
       },
       { threshold: 0.1, rootMargin: "200px" }
     );
     observer.observe(loadMoreRef.current);
     return () => observer.disconnect();
-  }, [filtered.length, visibleCount, hasMoreDB, isLoadingMore]);
+  }, [fairFiltered.length, visibleCount, hasMoreDB, isLoadingMore]);
 
   return (
     <div className={`${isDark ? "bg-[#0f0f0f] text-[#f5f3ef]" : "bg-[#fbfaf8] text-[#121212]"} min-h-screen pb-28 transition-colors`}>
@@ -367,10 +394,10 @@ export default function HomeV11() {
       <div className="mt-8 px-5"><div className="flex justify-between items-center mb-3"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Featured Collections — {collections.length}</h2><a href="/collections" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>Book a Spot →</a></div><div className="grid grid-cols-2 gap-3">{collections.slice(0, 6).map((c: any) => (<a key={c.id} href={`/seller/${encodeURIComponent(c.seller_name)}`} className={`rounded-[18px] overflow-hidden border relative h-[140px] group ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}><img src={c.image_url} className="w-full h-full object-cover group-active:scale-105 transition-transform duration-500" alt={c.seller_name} /><div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent"></div><div className="absolute top-2 left-2 bg-white text-black text-[8px] font-bold px-2 py-1 rounded-full flex items-center gap-1">✓ Verified</div><div className="absolute bottom-0 left-0 right-0 p-3"><p className="text-white text-[12px] font-bold leading-tight flex items-center gap-1">{c.seller_name} <span className="w-3 h-3 bg-[#0d9488] rounded-full grid place-items-center text-[8px]">✓</span></p><p className="text-white/70 text-[10px] mt-0.5 line-clamp-1">{c.description}</p><span className="mt-1.5 inline-block text-[9px] px-2 py-1 rounded-full bg-white text-black font-bold">View Collection →</span></div></a>))}</div></div>
 
       <div ref={latestRef} id="latest-section" className="mt-8 px-5 scroll-mt-24">
-        <div className="flex justify-between items-center mb-3"><div className="flex items-center gap-2"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {filtered.length} items • Tap to view</h2>{lastUpdate && <span className="text-[9px] opacity-40 flex items-center gap-1"><span className={`w-1.5 h-1.5 rounded-full ${autoRefreshOn ? "bg-green-500 animate-pulse" : "bg-gray-400"}`}></span>{autoRefreshOn ? "Live • 2s" : "Paused"} • {lastUpdate.toLocaleTimeString()}</span>}</div><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
-        <div className="grid gap-3">{filtered.slice(0, visibleCount).map((p: any) => {
+        <div className="flex justify-between items-center mb-3"><div className="flex items-center gap-2"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {fairFiltered.length} items • Tap to view</h2></div><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
+        <div className="grid gap-3">{fairFiltered.slice(0, visibleCount).map((p: any) => {
           const isVerified = verifiedSellers.has((p.seller_name || "").toLowerCase());
-          const views = viewCounts[p.id] || p.views || Math.floor(Math.random() * 200 + 20);
+          const views = viewCounts[p.id] ?? p.views ?? 0;
           return (
             <div key={p.id} onClick={() => openProduct(p)} className={`flex gap-3 rounded-[18px] p-3 border relative cursor-pointer active:scale-[0.98] transition-transform select-none ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}>
               <div className="w-[88px] h-[88px] rounded-[12px] overflow-hidden bg-black/10 shrink-0 relative"><img src={p.image_url} className="w-full h-full object-cover pointer-events-none" alt="" /><div className="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> {views}</div></div>
@@ -387,17 +414,17 @@ export default function HomeV11() {
               <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin dark:border-white/20 dark:border-t-white"></div>
               <span className={`text-[12px] ${isDark ? "text-white/60" : "text-black/60"}`}>Loading more products...</span>
             </div>
-          ) : filtered.length > visibleCount ? (
-            <div className={`text-[11px] ${isDark ? "text-white/40" : "text-black/40"}`}>Scroll for more • {filtered.length - visibleCount} more</div>
+          ) : fairFiltered.length > visibleCount ? (
+            <div className={`text-[11px] ${isDark ? "text-white/40" : "text-black/40"}`}>Scroll for more • {fairFiltered.length - visibleCount} more</div>
           ) : hasMoreDB ? (
             <div className={`text-[11px] ${isDark ? "text-white/40" : "text-black/40"}`}>Fetching more from server...</div>
           ) : filtered.length > 0 ? (
             <div className={`text-[11px] flex items-center gap-2 ${isDark ? "text-white/40" : "text-black/40"}`}>
-              <span>✓</span> You've seen all {filtered.length} items
+              <span>✓</span> You've seen all {fairFiltered.length} items
             </div>
           ) : null}
         </div>
-        {filtered.length === 0 && (
+        {fairFiltered.length === 0 && (
           <div className="text-center py-10 opacity-50"><p className="text-[13px]">No items in this category</p></div>
         )}
       </div>

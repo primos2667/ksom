@@ -17,6 +17,8 @@ export default function SellPage() {
   // 🔒 Storage Guard States
   const [storageStatus, setStorageStatus] = useState<{ blocked: boolean; count: number; max: number; percent: number; nextClean: string; daysToClean: number } | null>(null);
   const [checkingStorage, setCheckingStorage] = useState(true);
+  const [sellerCount, setSellerCount] = useState<number>(0);
+  const MAX_PER_SELLER = 30;
 
   useEffect(() => {
     const seller = localStorage.getItem("ksm_is_seller");
@@ -34,15 +36,30 @@ export default function SellPage() {
     }
   }, [router]);
 
+  const checkSellerCount = async (whatsapp: string) => {
+    if (!whatsapp) return 0;
+    try {
+      const supabase = createClient();
+      const cleanWa = whatsapp.replace(/[^0-9]/g, '').slice(-9); // last 9 digits to match variations
+      const { data } = await supabase.from("products").select("whatsapp");
+      const count = data?.filter((p: any) => {
+        const wa = String(p.whatsapp || "").replace(/[^0-9]/g, '').slice(-9);
+        return wa === cleanWa;
+      }).length || 0;
+      setSellerCount(count);
+      return count;
+    } catch { return 0; }
+  };
+
   const checkStorageLimit = async () => {
     try {
       const supabase = createClient();
       const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
       const productCount = count || 0;
 
-      // SETTINGS: Max products before 80% full - Supabase free = 500MB, ~1000 products max with 150KB each
-      const MAX_PRODUCTS = 400; // 400 = 80% of 500 capacity, adjust as needed
-      const LIMIT_THRESHOLD = Math.floor(MAX_PRODUCTS * 0.8); // 80% = 320 products
+      // SETTINGS: Max products before 80% full - 3000 products ~450MB at 150KB each
+      const MAX_PRODUCTS = 3000; // 3000 products ~450MB at 150KB each (safe for 1GB)
+      const LIMIT_THRESHOLD = Math.floor(MAX_PRODUCTS * 0.8); // 80% = 2400 products
       const percent = Math.floor((productCount / MAX_PRODUCTS) * 100);
       const blocked = productCount >= LIMIT_THRESHOLD;
 
@@ -121,10 +138,17 @@ export default function SellPage() {
     const supabase = createClient();
     // Double-check before insert (prevent race)
     const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
-    if ((count || 0) >= Math.floor(400 * 0.8)) {
+    if ((count || 0) >= Math.floor(3000 * 0.8)) {
       setLoading(false);
       alert(`🚫 Just reached 80% limit! Please wait for next clean on ${storageStatus?.nextClean}`);
       checkStorageLimit();
+      return;
+    }
+    // 🚫 Per-seller limit: max 30 items per WhatsApp
+    const myCount = await checkSellerCount(form.whatsapp);
+    if (myCount >= MAX_PER_SELLER) {
+      setLoading(false);
+      alert(`🚫 You have reached max ${MAX_PER_SELLER} products!\n\nYou currently have ${myCount} items on KSOM.\n\nPlease delete sold items or wait for 3-month auto-clean to add more. This prevents one seller dominating homepage.`);
       return;
     }
 
@@ -231,7 +255,14 @@ export default function SellPage() {
             <option>Phones</option><option>Fashion</option><option>Electronics</option><option>Shoes</option><option>Furniture</option><option>Books</option><option>Other</option>
           </select>
           <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Location e.g. Ayeduase" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
-          <input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="WhatsApp e.g. 233540000001" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
+          <div>
+            <input value={form.whatsapp} onChange={e => { setForm({ ...form, whatsapp: e.target.value }); if (e.target.value.length >= 9) checkSellerCount(e.target.value); }} onBlur={e => checkSellerCount(e.target.value)} placeholder="WhatsApp e.g. 233540000001" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
+            {form.whatsapp.length >= 9 && (
+              <p className={`text-[10px] mt-1.5 px-2 ${sellerCount >= 30 ? "text-red-500 font-bold" : sellerCount >= 20 ? "text-yellow-600" : "text-green-600"}`}>
+                📦 You have {sellerCount}/{MAX_PER_SELLER} products {sellerCount >= 30 ? "— MAX REACHED!" : sellerCount >= 25 ? "— Almost full!" : ""}
+              </p>
+            )}
+          </div>
 
           <div className="p-3 rounded-[18px] bg-zinc-50 dark:bg-zinc-900 border border-black/5 dark:border-white/10">
             <label className="flex items-center gap-2 cursor-pointer">

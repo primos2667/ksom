@@ -1,6 +1,6 @@
 {
-  "name": "Prima KSOM",
-  "short_name": "Prima KSOM",
+  "name": "Prima",
+  "short_name": "Prima",
   "description": "Prima x KSOM - KNUST Students Online Market",
   "start_url": "/",
   "display": "standalone",
