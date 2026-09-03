@@ -146,7 +146,16 @@ export default function HomeV11() {
     if (data) {
       if (append) {
         if (data.length > 0) {
-          setProducts(prev => [...prev, ...data]);
+          // ✅ FIX: Deduplicate to prevent double images like in your screenshot
+          setProducts(prev => {
+            const existingIds = new Set(prev.map((p: any) => p.id));
+            const uniqueNew = data.filter((d: any) => !existingIds.has(d.id));
+            if (uniqueNew.length === 0) {
+              setHasMoreDB(false);
+              return prev;
+            }
+            return [...prev, ...uniqueNew];
+          });
           setTotalFetched(prev => prev + data.length);
           if (data.length < limitCount) setHasMoreDB(false);
         } else {
@@ -154,12 +163,14 @@ export default function HomeV11() {
         }
       } else if (data.length > 0) {
         if (!silent || products.length === 0 || (data[0] && products[0] && data[0].id !== products[0].id)) {
-          setProducts(data);
-          setTotalFetched(data.length);
-          setHasMoreDB(data.length >= limitCount);
+          // ✅ FIX: Deduplicate initial fetch too
+          const uniqueData = Array.from(new Map(data.map((d: any) => [d.id, d])).values());
+          setProducts(uniqueData);
+          setTotalFetched(uniqueData.length);
+          setHasMoreDB(uniqueData.length >= limitCount);
           setLastUpdate(new Date());
-          if (!silent && data.length > products.length) {
-            const newItems = data.filter((d: any) => !products.some((p: any) => p.id === d.id));
+          if (!silent && uniqueData.length > products.length) {
+            const newItems = uniqueData.filter((d: any) => !products.some((p: any) => p.id === d.id));
             if (newItems.length > 0 && navigator.vibrate) navigator.vibrate([100, 50, 100]);
           }
         }
@@ -388,11 +399,14 @@ export default function HomeV11() {
   let filtered = active === "All" ? products : products.filter(p => p.category === active || p.category?.toLowerCase().includes(active.toLowerCase()));
   if (search) filtered = filtered.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
 
+  // ✅ FIX: Deduplicate first, then fair shuffle - prevents double images
+  const dedupedProducts = Array.from(new Map(filtered.map((p: any) => [p.id, p])).values());
+
   // 🛡️ Anti-domination: Shuffle so same seller doesn't appear 5 times in a row (fair feed like Jumia)
   const fairFiltered = (() => {
     const result: any[] = [];
     const sellerLastSeen: Record<string, number> = {};
-    const queue = [...filtered];
+    const queue = [...dedupedProducts];
     // Simple fair algorithm: don't allow same whatsapp 3 times in last 6 items
     while (queue.length > 0) {
       let idx = 0;
@@ -433,7 +447,7 @@ export default function HomeV11() {
         <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-[#0f172a] grid place-items-center text-[#d4af37] font-extrabold text-[11px]">P</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
       </div>
 
-      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
+      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
 
       <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{search}&quot; — {filtered.length} found</p>}</div>
 
@@ -456,7 +470,9 @@ export default function HomeV11() {
 
       <div ref={latestRef} id="latest-section" className="mt-8 px-5 scroll-mt-24">
         <div className="flex justify-between items-center mb-3"><div className="flex items-center gap-2"><h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60">Latest — {fairFiltered.length} items • Tap to view</h2></div><a href="/sell" className={`text-[10px] px-3 py-1 rounded-full border ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>+ Sell</a></div>
-        <div className="grid gap-3">{fairFiltered.slice(0, visibleCount).map((p: any) => {
+
+        {/* ✅ First 3: Full block (horizontal card) */}
+        <div className="grid gap-3">{fairFiltered.slice(0, Math.min(3, visibleCount)).map((p: any) => {
           const isVerified = verifiedSellers.has((p.seller_name || "").toLowerCase());
           const views = viewCounts[p.id] ?? p.views ?? 0;
           return (
@@ -468,6 +484,40 @@ export default function HomeV11() {
           );
         })}
         </div>
+
+        {/* ✅ Rest: Side by side in two's (grid 2 cols) */}
+        {fairFiltered.length > 3 && (
+          <div className="mt-3 grid grid-cols-2 gap-3">{fairFiltered.slice(3, visibleCount).map((p: any) => {
+            const isVerified = verifiedSellers.has((p.seller_name || "").toLowerCase());
+            const views = viewCounts[p.id] ?? p.views ?? 0;
+            return (
+              <div key={p.id} onClick={() => openProduct(p)} className={`rounded-[18px] border overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform select-none ${isDark ? "bg-[#1a1a1a] border-white/5" : "bg-white border-black/5"}`}>
+                <div className="aspect-square overflow-hidden bg-black/5 relative">
+                  <img src={p.image_url} className="w-full h-full object-cover pointer-events-none" alt="" />
+                  <div className="absolute top-2 left-2 flex gap-1">
+                    <span className="bg-white text-black text-[8px] font-bold px-2 py-1 rounded-full">{p.category}</span>
+                    {isVerified && <span className="bg-[#0d9488] text-white text-[8px] font-bold px-2 py-1 rounded-full">✓</span>}
+                  </div>
+                  <div className="absolute bottom-2 left-2 bg-black/70 text-white text-[8px] px-2 py-1 rounded-full backdrop-blur">👁 {views}</div>
+                  <div className="absolute top-2 right-2 bg-black/60 backdrop-blur text-white text-[7px] px-1.5 py-0.5 rounded-full">Tap 👆</div>
+                </div>
+                <div className="p-2.5">
+                  <p className="text-[11px] font-medium leading-tight truncate flex items-center gap-1">{p.title} {isVerified && <span className="text-[#0d9488] text-[8px]">✓</span>}</p>
+                  <p className="text-[10px] opacity-50 mt-0.5 truncate">📍 {p.location}</p>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-[12px] font-bold">{p.price}</p>
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${isDark ? "bg-white/10 text-white/50" : "bg-black/5 text-black/50"}`}>{views > 0 ? `${views} views` : "New"}</span>
+                  </div>
+                  <div className="flex gap-1.5 mt-2.5">
+                    <button onClick={(e) => { e.stopPropagation(); window.open(`https://wa.me/${String(p.whatsapp || "").replace(/[^0-9]/g, '')}?text=Hi, I'm interested in ${p.title} on KSOM`, "_blank"); }} className="flex-1 bg-[#25D366] text-white text-[10px] font-bold py-2 rounded-full">WhatsApp</button>
+                    <button onClick={(e) => { e.stopPropagation(); toggleCart(p.id); }} className={`w-8 h-8 rounded-full grid place-items-center text-[12px] border active:scale-90 ${cart.includes(p.id) ? "bg-black text-white border-black dark:bg-white dark:text-black" : isDark ? "bg-white/10 border-white/10 text-white" : "bg-black/5 border-black/10"}`}>{cart.includes(p.id) ? "✓" : "🛒"}</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          </div>
+        )}
         {/* ♾️ Jumia-style infinite loader */}
         <div ref={loadMoreRef} className="mt-5 flex flex-col items-center gap-3 py-4">
           {isLoadingMore ? (
