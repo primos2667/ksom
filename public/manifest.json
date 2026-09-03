@@ -5,7 +5,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "white",
-  "theme_color": "white",
+  "theme_color": "#0d9488",
   "icons": [
     {
       "src": "/ksom-icon-512.png",
