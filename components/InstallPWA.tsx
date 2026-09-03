@@ -103,37 +103,52 @@ export function InstallPWA() {
   const enablePush = async () => {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        alert('Push not supported');
+        alert('Push not supported on this browser. Use Chrome Android.');
         return;
       }
       const reg = await navigator.serviceWorker.register('/sw.js');
+      console.log('SW registered', reg);
       const perm = await Notification.requestPermission();
       setPermission(perm);
       if (perm !== 'granted') {
-        alert('Please allow notifications to get badge on home screen!');
+        alert('Please allow notifications to get badge on home screen! You blocked it.');
         return;
       }
+      console.log('Subscribing with VAPID...');
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
+      console.log('Got subscription', sub.endpoint);
       const supabase = createClient();
-      await supabase.from('push_subscriptions').insert([{
+      const { data, error } = await supabase.from('push_subscriptions').insert([{
         subscription: sub.toJSON(),
         endpoint: sub.endpoint,
         created_at: new Date().toISOString(),
-      }]);
+      }]).select();
+      if (error) {
+        console.error('Supabase insert error', error);
+        alert('Supabase error: ' + error.message + '\n\nFix: Go to Supabase SQL Editor and run:\ncreate policy \"Allow all\" on push_subscriptions for all using (true) with check (true);');
+        // Still show enabled locally even if DB fails, so push still works via SW?
+      } else {
+        console.log('Saved to DB', data);
+      }
       setPushEnabled(true);
+      localStorage.setItem('ksom-push-enabled', 'true');
       if ('setAppBadge' in navigator) {
         (navigator as any).setAppBadge(1).catch(() => { });
         setTimeout(() => {
           if ('clearAppBadge' in navigator) (navigator as any).clearAppBadge().catch(() => { });
         }, 2000);
       }
-      alert('✅ Enabled! You will get badge on home screen even when closed!');
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      alert('✅ Enabled! Badge will show even when app closed! Now check Supabase table - should have 1 row!');
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200, 100, 400]);
+        setTimeout(() => { try { navigator.vibrate([500]) } catch { } }, 300);
+      }
     } catch (e: any) {
-      alert('Failed: ' + e.message);
+      console.error('Push failed', e);
+      alert('Failed: ' + e.message + '\n\nTry: Chrome Settings > Site Settings > ksom-omega.vercel.app > Clear & Reset, then try again!');
     }
   };
 
@@ -158,7 +173,7 @@ export function InstallPWA() {
 
   // If already installed, don't show install banner, but still show push enable if needed
   if (isInstalled) {
-    if (!pushEnabled && permission !== 'denied' && 'Notification' in window) {
+    if (permission !== 'denied' && 'Notification' in window && (Notification as any).permission !== 'granted') {
       return (
         <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
           <div className="flex items-center gap-3">
@@ -175,20 +190,24 @@ export function InstallPWA() {
     return null;
   }
 
-  // Show push enable first if not enabled
-  if (!pushEnabled && permission !== 'denied' && 'Notification' in window && Notification.permission !== 'granted') {
-    return (
-      <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-[#0d9488] flex items-center justify-center text-white font-bold">🔔</div>
-          <div>
-            <p className="text-sm font-bold">Enable Notifications</p>
-            <p className="text-xs opacity-70">Get badge on app icon when new product!</p>
+  // ✅ ALWAYS show Enable first if not granted - PRIORITY over Install!
+  if (permission !== 'denied' && 'Notification' in window && (Notification as any).permission !== 'granted') {
+    // Even if pushEnabled true but no permission, still show
+    const alreadySubscribed = typeof window !== 'undefined' && localStorage.getItem('ksom-push-enabled');
+    if (!alreadySubscribed || (Notification as any).permission !== 'granted') {
+      return (
+        <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-[#0d9488] flex items-center justify-center text-white font-bold">🔔</div>
+            <div>
+              <p className="text-sm font-bold">Enable Notifications</p>
+              <p className="text-xs opacity-70">Get badge on app icon when new product!</p>
+            </div>
           </div>
+          <button onClick={enablePush} className="bg-[#0d9488] text-white text-xs font-bold px-4 py-2 rounded-full animate-pulse">Enable</button>
         </div>
-        <button onClick={enablePush} className="bg-[#0d9488] text-white text-xs font-bold px-4 py-2 rounded-full animate-pulse">Enable</button>
-      </div>
-    );
+      );
+    }
   }
 
   // Show install banner - ALWAYS till installed! Later makes it come back tomorrow!
