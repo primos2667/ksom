@@ -30,8 +30,20 @@ export default function SellPage() {
       const savedSellerName = localStorage.getItem("ksm_seller_name") || "";
       if (savedSellerName) {
         setForm(prev => ({ ...prev, seller_name: savedSellerName }));
-        setHasCollection(true);
       }
+      // 🔒 Check if this seller has approved collection - if yes, lock hasCollection ON
+      const checkCollection = async () => {
+        try {
+          const supabase = createClient();
+          const { data } = await supabase.from("collections").select("*").eq("seller_name", savedSellerName).eq("status", "approved").single();
+          if (data) {
+            setHasCollection(true);
+            // Also save that they have collection
+            localStorage.setItem("ksm_has_collection", "true");
+          }
+        } catch { }
+      };
+      if (savedSellerName) checkCollection();
       checkStorageLimit();
     }
   }, [router]);
@@ -123,6 +135,18 @@ export default function SellPage() {
       alert(`🚫 KSOM Storage is ${storageStatus.percent}% full! We stop at 80% to keep app fast.\n\n🧹 Next auto-clean: ${storageStatus.nextClean} (in ${storageStatus.daysToClean} days)\n\nOld products >90 days will be removed automatically.`);
       return;
     }
+    // 🔒 TIGHT: If hasCollection, force seller_name from login (constant, cannot be changed to cheat)
+    const lockedSellerName = localStorage.getItem("ksm_seller_name") || "";
+    const lockedSellerId = localStorage.getItem("ksm_seller_id") || "";
+    if (hasCollection) {
+      if (!lockedSellerName) {
+        alert("❌ No seller name found in login! Please login again at /login");
+        return;
+      }
+      // Force it - even if they tried to hack input via devtools, we use locked name
+      form.seller_name = lockedSellerName;
+    }
+
     if (!form.title || !form.price || !form.whatsapp) {
       alert("Fill title, price, WhatsApp");
       return;
@@ -172,6 +196,7 @@ export default function SellPage() {
       location: form.location,
       whatsapp: form.whatsapp,
       image_url: imageUrl,
+      views: 0, // ✅ Start at 0 views as you set!
     };
     if (hasCollection && form.seller_name.trim()) {
       payload.seller_name = form.seller_name.trim();
@@ -186,6 +211,21 @@ export default function SellPage() {
       localStorage.setItem("ksom_last_post", JSON.stringify({ title: form.title, time: Date.now() }));
       setShowSuccess(true);
       checkStorageLimit();
+
+      // ✅ Send push notification to all users - shows badge on home screen even when app closed!
+      try {
+        console.log('📤 Sending push to /api/push/send');
+        fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: 'New on KSOM! 🚀',
+            body: `${form.title} • ${form.price}`,
+            image: imageUrl,
+            productId: Date.now().toString(),
+          }),
+        }).then(r => r.json()).then(d => console.log('Push result:', d)).catch(e => console.log('Push failed', e));
+      } catch (e) { console.log('Push error', e); }
     }
   };
 
@@ -300,13 +340,23 @@ export default function SellPage() {
           <div className="p-3 rounded-[18px] bg-zinc-50 dark:bg-zinc-900 border border-black/5 dark:border-white/10 transition-colors">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={hasCollection} onChange={e => setHasCollection(e.target.checked)} className="w-4 h-4 rounded accent-[#0d9488]" />
-              <span className="text-[11px] font-bold dark:text-white">I have a collection with KSOM</span>
+              <span className="text-[11px] font-bold dark:text-white">I have a collection with KSOM 🔒</span>
             </label>
-            <p className="text-[10px] opacity-60 mt-1 dark:text-white/60">Only check if you booked a collection at /collections.</p>
+            <p className="text-[10px] opacity-60 mt-1 dark:text-white/60">Only if you booked & admin approved at /collections. Name locked to prevent cheating!</p>
             {hasCollection && (
               <div className="mt-3 p-3 rounded-[12px] bg-[#0d9488]/10 border border-[#0d9488]/20">
-                <p className="text-[10px] font-bold text-[#0d9488]">🔗 Your Shop Name</p>
-                <input value={form.seller_name} onChange={e => setForm({ ...form, seller_name: e.target.value })} placeholder="Exact shop name e.g. Sneaker Hub" className="mt-2 w-full rounded-full px-4 py-3 border border-[#0d9488]/20 text-sm outline-none bg-white dark:bg-zinc-800 dark:text-white" />
+                <p className="text-[10px] font-bold text-[#0d9488] flex items-center gap-1">🔒 Your Shop Name (LOCKED - Cannot be changed)</p>
+                <div className="mt-2 w-full rounded-full px-4 py-3 border border-[#0d9488]/30 text-sm bg-zinc-100 dark:bg-zinc-800 dark:text-white flex justify-between items-center">
+                  <span className="font-bold">{form.seller_name || localStorage.getItem("ksm_seller_name") || "Not set"}</span>
+                  <span className="text-[10px] bg-[#0d9488] text-white px-2 py-0.5 rounded-full">🔒 LOCKED</span>
+                </div>
+                <p className="text-[9px] opacity-70 mt-2 dark:text-white/60">✅ This is constant! It's your login name. You cannot change it to another seller's name - so you can't infiltrate their paid collection! Your products will ONLY show on YOUR collection page. Tight security!</p>
+                {form.seller_name && (
+                  <div className="mt-2 p-2 rounded-[10px] bg-white dark:bg-black/20">
+                    <p className="text-[9px] font-bold dark:text-white">Your collection link:</p>
+                    <p className="text-[10px] font-mono mt-1 break-all dark:text-white/80">/seller/{encodeURIComponent(form.seller_name)}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -71,10 +71,6 @@ export default function CollectionsPage() {
         </div>
       )}
 
-      <div className="mt-10 p-3 rounded-[12px] bg-white border">
-        <p className="text-xs font-bold">Run this SQL first in Supabase:</p>
-        <code className="text-[10px] block mt-2 bg-black/5 p-2 rounded">create table collections (id uuid default gen_random_uuid() primary key, seller_name text, description text, whatsapp text, image_url text, status text default 'pending', created_at timestamp default now()); alter table collections enable row level security; create policy "public all" on collections for all using (true) with check (true);</code>
-      </div>
     </div>
   );
 }

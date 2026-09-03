@@ -9,9 +9,7 @@ function urlBase64ToUint8Array(base64String: string) {
   const base64 = (base64String + padding).replace(/\-/g, "+").replace(/_/g, "/");
   const rawData = atob(base64);
   const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
   return outputArray;
 }
 
@@ -23,12 +21,38 @@ export function InstallPWA() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState<string | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [waitingSW, setWaitingSW] = useState<any>(null);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then(() => {
-        console.log('✅ SW registered');
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        console.log('✅ SW v3 registered - auto-update enabled');
+
+        // 🔄 Listen for updates!
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New version available!
+                console.log('🆕 New version available!');
+                setWaitingSW(newWorker);
+                setUpdateAvailable(true);
+              }
+            });
+          }
+        });
       }).catch((e) => console.log('SW register failed', e));
+
+      // Auto-reload when new SW takes over - NO REINSTALL NEEDED!
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        console.log('🔄 New SW activated - reloading for update!');
+        window.location.reload();
+      });
     }
 
     if (typeof window !== 'undefined') {
@@ -47,18 +71,12 @@ export function InstallPWA() {
     }
 
     const dismissedAt = localStorage.getItem('ksom-install-dismissed-at');
-    if (dismissedAt) {
-      const oneDay = 24 * 60 * 60 * 1000;
-      if (Date.now() - parseInt(dismissedAt) > oneDay) {
-        localStorage.removeItem('ksom-install-dismissed-at');
-      }
+    if (dismissedAt && Date.now() - parseInt(dismissedAt) > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem('ksom-install-dismissed-at');
     }
     const notifDismissedAt = localStorage.getItem('ksom-notif-dismissed-at');
-    if (notifDismissedAt) {
-      const oneDay = 24 * 60 * 60 * 1000;
-      if (Date.now() - parseInt(notifDismissedAt) > oneDay) {
-        localStorage.removeItem('ksom-notif-dismissed-at');
-      }
+    if (notifDismissedAt && Date.now() - parseInt(notifDismissedAt) > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem('ksom-notif-dismissed-at');
     }
 
     const handler = (e: any) => {
@@ -68,22 +86,8 @@ export function InstallPWA() {
       setDeferredPrompt(e);
       setShowInstall(true);
     };
-
     window.addEventListener("beforeinstallprompt", handler);
-
-    const timeout = setTimeout(() => {
-      if (!isInstalled && !showInstall) {
-        const dismissed = localStorage.getItem('ksom-install-dismissed-at');
-        if (!dismissed || Date.now() - parseInt(dismissed) > 24 * 60 * 60 * 1000) {
-          if (deferredPrompt) setShowInstall(true);
-        }
-      }
-    }, 5000);
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handler);
-      clearTimeout(timeout);
-    };
+    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
   const handleLater = () => {
@@ -97,19 +101,26 @@ export function InstallPWA() {
     setTimeout(() => setPermission('default'), 100);
   };
 
+  const handleUpdate = () => {
+    if (waitingSW) {
+      waitingSW.postMessage({ type: 'SKIP_WAITING' });
+      setUpdateAvailable(false);
+    } else {
+      window.location.reload();
+    }
+  };
+
   const enablePush = async () => {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        setShowError('Push not supported on this browser. Use Chrome on Android for best experience.');
+        setShowError('Push not supported. Use Chrome Android.');
         return;
       }
       const reg = await navigator.serviceWorker.register('/sw.js');
       const perm = await Notification.requestPermission();
       setPermission(perm);
       if (perm !== 'granted') {
-        if (perm === 'denied') {
-          setShowError('Notifications blocked. Allow in browser settings to get updates!');
-        }
+        if (perm === 'denied') setShowError('Notifications blocked. Allow in settings!');
         return;
       }
       const sub = await reg.pushManager.subscribe({
@@ -121,26 +132,20 @@ export function InstallPWA() {
         subscription: sub.toJSON(),
         endpoint: sub.endpoint,
         created_at: new Date().toISOString(),
-      }]).select();
+      }]);
       setPushEnabled(true);
       localStorage.setItem('ksom-push-enabled', 'true');
-      if ('setAppBadge' in navigator) {
-        try { (navigator as any).setAppBadge(1).catch(() => { }); setTimeout(() => { try { (navigator as any).clearAppBadge().catch(() => { }); } catch { } }, 2000); } catch { }
-      }
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
-      if (navigator.vibrate) {
-        navigator.vibrate([100, 50, 100]);
-      }
-    } catch (e: any) {
-      console.error('Push failed', e);
-      setShowError('Could not enable notifications. Try clearing site data and try again.');
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    } catch {
+      setShowError('Could not enable. Try clearing site data.');
     }
   };
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
-      setShowError('To install: Tap menu (3 dots) → Add to Home Screen → Install');
+      setShowError('To install: Menu (3 dots) → Add to Home Screen → Install');
       return;
     }
     deferredPrompt.prompt();
@@ -155,7 +160,6 @@ export function InstallPWA() {
   };
 
   if (typeof window === 'undefined') return null;
-
   const notifDismissed = localStorage.getItem('ksom-notif-dismissed-at');
   const isNotifDismissed = notifDismissed && Date.now() - parseInt(notifDismissed) < 24 * 60 * 60 * 1000;
   const installDismissed = localStorage.getItem('ksom-install-dismissed-at');
@@ -163,6 +167,21 @@ export function InstallPWA() {
 
   return (
     <>
+      {updateAvailable && (
+        <div className="fixed top-20 left-4 right-4 z-[100] animate-[slideDown_0.4s_ease-out]">
+          <div className="bg-[#0d9488]/90 backdrop-blur-[24px] border border-white/20 rounded-[20px] px-5 py-4 shadow-[0_12px_40px_rgba(0,0,0,0.3)] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white text-[#0d9488] grid place-items-center font-bold">🆕</div>
+              <div>
+                <p className="text-white text-[13px] font-bold">New update available!</p>
+                <p className="text-white/80 text-[11px]">Tap to get latest version - no reinstall!</p>
+              </div>
+            </div>
+            <button onClick={handleUpdate} className="bg-white text-[#0d9488] text-xs font-bold px-4 py-2.5 rounded-full active:scale-95">Update</button>
+          </div>
+        </div>
+      )}
+
       {showSuccess && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] animate-[slideDown_0.4s_ease-out]">
           <div className="bg-[#1e1e1e]/80 backdrop-blur-[24px] border border-white/10 rounded-[20px] px-5 py-4 shadow-[0_12px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 min-w-[280px]">
@@ -208,7 +227,7 @@ export function InstallPWA() {
         </div>
       )}
 
-      {!isInstallDismissed && showInstall && (
+      {!isInstallDismissed && showInstall && !updateAvailable && (
         <div className="fixed bottom-20 left-4 right-4 z-[60] animate-[slideUp_0.4s_ease-out]">
           <div className="bg-[#1e1e1e]/60 backdrop-blur-[24px] border border-white/10 rounded-[20px] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.2)] flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -226,10 +245,7 @@ export function InstallPWA() {
         </div>
       )}
 
-      <style>{`
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes slideDown { from { transform: translate(-50%, -20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
-      `}</style>
+      <style>{`@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } } @keyframes slideDown { from { transform: translate(-50%, -20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }`}</style>
     </>
   );
 }
