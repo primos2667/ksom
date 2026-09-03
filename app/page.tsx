@@ -38,11 +38,39 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
       setNotifs(updated);
       setHasNew(true);
       const newUnread = updated.filter((n: any) => !n.read).length;
+      // ✅ PWA App icon badge (small number on app)
       if ('setAppBadge' in navigator) {
         (navigator as any).setAppBadge(newUnread).catch(() => { });
       }
-      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      // ✅ Vibration - stronger pattern + ensure works
+      try {
+        if (navigator.vibrate) {
+          navigator.vibrate([200, 100, 200, 100, 200]);
+          console.log("📳 Vibrated!");
+        } else {
+          console.log("Vibration not supported");
+        }
+      } catch (e) { console.log("Vibrate error", e); }
+      // ✅ Also trigger homepage update event for product count
       window.dispatchEvent(new Event('ksom-notif-update'));
+      window.dispatchEvent(new Event('ksom-new-product'));
+      // ✅ Flash title to show notification
+      const originalTitle = document.title;
+      document.title = `(${newUnread}) New on KSOM!`;
+      setTimeout(() => { document.title = originalTitle; }, 3000);
+      // ✅ Play notification sound via Web Audio if possible
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 800;
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+      } catch { }
+
     }).subscribe((status) => {
       if (status === 'SUBSCRIBED') console.log('KSOM notif realtime ON v12');
       if (status === 'CHANNEL_ERROR') {
@@ -83,25 +111,43 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
   const unread = notifs.filter((n: any) => !n.read).length;
 
   return (
-    <div className="relative">
-      <button onClick={() => { setShow(!show); if (!show) markRead(); }} className={`relative w-10 h-10 rounded-full grid place-items-center backdrop-blur border transition-all active:scale-90 ${isDark ? "bg-white/10 border-white/20 text-white" : "bg-black/5 border-black/10 text-black"}`}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 8a6 6 0 0 1 12 0c0 7 6 9 6 9H0s6-2 6-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
-        {hasNew && unread > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-1 border-2 border-white dark:border-[#1e1e1e] animate-pulse">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
-      </button>
-      {show && (
-        <div className={`absolute bottom-[52px] left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-0 w-[320px] max-h-[420px] rounded-[20px] border shadow-[0_20px_60px_rgba(0,0,0,0.25)] overflow-hidden z-[100] backdrop-blur-xl ${isDark ? "bg-[#1e1e1e]/95 border-white/10" : "bg-white/95 border-black/10"}`}>
-          <div className={`p-4 flex justify-between items-center border-b ${isDark ? "border-white/10" : "border-black/5"}`}><h3 className={`text-[13px] font-bold ${isDark ? "text-white" : "text-black"}`}>Notifications {unread > 0 && <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{unread}</span>}</h3><button onClick={() => setShow(false)} className={`w-7 h-7 rounded-full grid place-items-center ${isDark ? "bg-white/10 text-white" : "bg-black/5 text-black"}`}>✕</button></div>
-          <div className="overflow-y-auto max-h-[360px]">{notifs.length === 0 ? <div className="p-8 text-center"><p className={`text-[12px] ${isDark ? "text-white/60" : "text-black/50"}`}>No notifications yet</p><p className="text-[10px] opacity-40 mt-2">When someone posts new product, you will get badge here</p></div> : notifs.map((n: any) => (<div key={n.id} className={`p-3.5 flex gap-3 border-b ${isDark ? "border-white/5" : "border-black/5"}`}><img src={n.image} className="w-10 h-10 rounded-full object-cover" /><div className="flex-1"><p className={`text-[12px] ${isDark ? "text-white" : "text-black"}`}>{n.title} • {n.message}</p><p className="text-[9px] opacity-40 mt-1">{new Date(n.created_at).toLocaleTimeString()}</p></div></div>))}</div>
-          <div className="p-2 text-center border-t dark:border-white/10">
-            <button onClick={() => { localStorage.removeItem('ksm_notifications'); setNotifs([]); setHasNew(false); if ('clearAppBadge' in navigator) (navigator as any).clearAppBadge().catch(() => { }); }} className="text-[10px] opacity-50">Clear all</button>
+    <>
+      {/* 🔴 TOP-RIGHT APP CORNER PULSING SPRAY WITH NUMBER - like you wanted! */}
+      {hasNew && unread > 0 && (
+        <div className="fixed top-[12px] right-[12px] z-[9999] pointer-events-none flex items-center gap-1">
+          <div className="relative">
+            <span className="absolute w-6 h-6 bg-red-500 rounded-full animate-ping opacity-60"></span>
+            <span className="relative min-w-[22px] h-6 bg-red-500 rounded-full border-2 border-white dark:border-black shadow-[0_0_12px_rgba(239,68,68,0.7)] flex items-center justify-center px-1.5 text-[10px] font-bold text-white">
+              {unread > 9 ? "9+" : unread}
+            </span>
           </div>
         </div>
       )}
-    </div>
+      <div className="relative">
+        <button onClick={() => { setShow(!show); if (!show) markRead(); }} className={`relative w-10 h-10 rounded-full grid place-items-center backdrop-blur border transition-all active:scale-90 ${isDark ? "bg-white/10 border-white/20 text-white" : "bg-black/5 border-black/10 text-black"}`}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 8a6 6 0 0 1 12 0c0 7 6 9 6 9H0s6-2 6-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+          {hasNew && unread > 0 && (
+            <>
+              {/* 🔴 Pulsing spray background */}
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full animate-ping opacity-60"></span>
+              {/* 🔴 Number badge with spray glow */}
+              <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-1 border-2 border-white dark:border-[#1e1e1e] shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            </>
+          )}
+        </button>
+        {show && (
+          <div className={`absolute bottom-[52px] left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-0 w-[320px] max-h-[420px] rounded-[20px] border shadow-[0_20px_60px_rgba(0,0,0,0.25)] overflow-hidden z-[100] backdrop-blur-xl ${isDark ? "bg-[#1e1e1e]/95 border-white/10" : "bg-white/95 border-black/10"}`}>
+            <div className={`p-4 flex justify-between items-center border-b ${isDark ? "border-white/10" : "border-black/5"}`}><h3 className={`text-[13px] font-bold ${isDark ? "text-white" : "text-black"}`}>Notifications {unread > 0 && <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{unread}</span>}</h3><button onClick={() => setShow(false)} className={`w-7 h-7 rounded-full grid place-items-center ${isDark ? "bg-white/10 text-white" : "bg-black/5 text-black"}`}>✕</button></div>
+            <div className="overflow-y-auto max-h-[360px]">{notifs.length === 0 ? <div className="p-8 text-center"><p className={`text-[12px] ${isDark ? "text-white/60" : "text-black/50"}`}>No notifications yet</p><p className="text-[10px] opacity-40 mt-2">When someone posts new product, you will get badge here</p></div> : notifs.map((n: any) => (<div key={n.id} className={`p-3.5 flex gap-3 border-b ${isDark ? "border-white/5" : "border-black/5"}`}><img src={n.image} className="w-10 h-10 rounded-full object-cover" /><div className="flex-1"><p className={`text-[12px] ${isDark ? "text-white" : "text-black"}`}>{n.title} • {n.message}</p><p className="text-[9px] opacity-40 mt-1">{new Date(n.created_at).toLocaleTimeString()}</p></div></div>))}</div>
+            <div className="p-2 text-center border-t dark:border-white/10">
+              <button onClick={() => { localStorage.removeItem('ksm_notifications'); setNotifs([]); setHasNew(false); if ('clearAppBadge' in navigator) (navigator as any).clearAppBadge().catch(() => { }); }} className="text-[10px] opacity-50">Clear all</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -447,7 +493,7 @@ export default function HomeV11() {
         <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-[#0f172a] grid place-items-center text-[#d4af37] font-extrabold text-[11px]">P</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
       </div>
 
-      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
+      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
 
       <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{search}&quot; — {filtered.length} found</p>}</div>
 
