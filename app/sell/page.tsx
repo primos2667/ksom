@@ -40,7 +40,7 @@ export default function SellPage() {
     if (!whatsapp) return 0;
     try {
       const supabase = createClient();
-      const cleanWa = whatsapp.replace(/[^0-9]/g, '').slice(-9); // last 9 digits to match variations
+      const cleanWa = whatsapp.replace(/[^0-9]/g, '').slice(-9);
       const { data } = await supabase.from("products").select("whatsapp");
       const count = data?.filter((p: any) => {
         const wa = String(p.whatsapp || "").replace(/[^0-9]/g, '').slice(-9);
@@ -56,26 +56,22 @@ export default function SellPage() {
       const supabase = createClient();
       const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
       const productCount = count || 0;
-
-      // SETTINGS: Max products before 80% full - 3000 products ~450MB at 150KB each
-      const MAX_PRODUCTS = 3000; // 3000 products ~450MB at 150KB each (safe for 1GB)
-      const LIMIT_THRESHOLD = Math.floor(MAX_PRODUCTS * 0.8); // 80% = 2400 products
+      const MAX_PRODUCTS = 3000;
+      const LIMIT_THRESHOLD = Math.floor(MAX_PRODUCTS * 0.8);
       const percent = Math.floor((productCount / MAX_PRODUCTS) * 100);
       const blocked = productCount >= LIMIT_THRESHOLD;
 
-      // Calculate next 3-months clean date - fixed cycle: Jan 1, Apr 1, Jul 1, Oct 1
       const now = new Date();
       const currentYear = now.getFullYear();
       const cleanDates = [
-        new Date(currentYear, 0, 1), // Jan 1
-        new Date(currentYear, 3, 1), // Apr 1
-        new Date(currentYear, 6, 1), // Jul 1
-        new Date(currentYear, 9, 1), // Oct 1
+        new Date(currentYear, 0, 1),
+        new Date(currentYear, 3, 1),
+        new Date(currentYear, 6, 1),
+        new Date(currentYear, 9, 1),
       ];
-      // Find next clean date
       let nextClean = cleanDates.find(d => d > now);
       if (!nextClean) {
-        nextClean = new Date(currentYear + 1, 0, 1); // Next year Jan 1
+        nextClean = new Date(currentYear + 1, 0, 1);
       }
       const daysToClean = Math.ceil((nextClean.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -136,7 +132,6 @@ export default function SellPage() {
 
     setLoading(true);
     const supabase = createClient();
-    // Double-check before insert (prevent race)
     const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
     if ((count || 0) >= Math.floor(3000 * 0.8)) {
       setLoading(false);
@@ -144,7 +139,6 @@ export default function SellPage() {
       checkStorageLimit();
       return;
     }
-    // 🚫 Per-seller limit: max 30 items per WhatsApp
     const myCount = await checkSellerCount(form.whatsapp);
     if (myCount >= MAX_PER_SELLER) {
       setLoading(false);
@@ -191,10 +185,30 @@ export default function SellPage() {
     router.push("/");
   };
 
-  if (!isSeller) return <div className="min-h-screen grid place-items-center bg-[#fbfaf8] text-[12px]">Checking verification...</div>;
+  // ✅ FIXED: No white flash! Smooth dark-aware skeleton same as homepage
+  if (!isSeller) {
+    return (
+      <div className="min-h-screen bg-[#fbfaf8] dark:bg-[#0f0f0f] p-5 pb-28">
+        <div className="max-w-md mx-auto animate-pulse">
+          <div className="flex justify-between items-center">
+            <div className="h-6 w-32 bg-black/10 dark:bg-white/10 rounded-full"></div>
+            <div className="h-6 w-16 bg-black/10 dark:bg-white/10 rounded-full"></div>
+          </div>
+          <div className="mt-4 h-12 w-full bg-black/5 dark:bg-white/5 rounded-[16px]"></div>
+          <div className="mt-6 grid gap-3">
+            <div className="h-52 bg-black/5 dark:bg-white/5 rounded-[18px]"></div>
+            <div className="h-12 bg-black/5 dark:bg-white/5 rounded-full"></div>
+            <div className="h-12 bg-black/5 dark:bg-white/5 rounded-full"></div>
+            <div className="h-12 bg-black/5 dark:bg-white/5 rounded-full"></div>
+            <div className="h-12 bg-black/5 dark:bg-white/5 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#fbfaf8] dark:bg-[#0f0f0f] p-5 pb-28">
+    <div className="min-h-screen bg-[#fbfaf8] dark:bg-[#0f0f0f] p-5 pb-28 transition-colors duration-200">
       <div className="flex justify-between items-center max-w-md mx-auto">
         <h1 className="text-xl font-bold dark:text-white">Sell on KSOM</h1>
         <a href="/" className="text-xs px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black">Home</a>
@@ -219,7 +233,6 @@ export default function SellPage() {
         </div>
       )}
 
-      {/* 🚫 BLOCKED SCREEN */}
       {storageStatus?.blocked ? (
         <div className="max-w-md mx-auto mt-6">
           <div className="rounded-[24px] bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-800 p-6 text-center">
@@ -240,7 +253,7 @@ export default function SellPage() {
         </div>
       ) : (
         <div className="mt-6 max-w-md mx-auto grid gap-3">
-          <div className="rounded-[18px] border border-dashed border-black/20 dark:border-white/10 p-4 bg-white dark:bg-zinc-900 text-center">
+          <div className="rounded-[18px] border border-dashed border-black/20 dark:border-white/10 p-4 bg-white dark:bg-zinc-900 text-center transition-colors">
             {imageUrl ? <img src={imageUrl} className="w-full h-52 object-cover rounded-[12px] mb-3" /> : <div className="py-10 text-xs opacity-40 dark:text-white/40">No image selected</div>}
             <label className={`inline-block px-5 py-2.5 rounded-full text-xs font-bold cursor-pointer ${uploading ? "bg-black/20 text-black/40" : "bg-black text-white dark:bg-white dark:text-black"}`}>
               {uploading ? "Uploading..." : imageUrl ? "Change Image" : "📷 Upload Image"}
@@ -249,14 +262,14 @@ export default function SellPage() {
             <p className="text-[10px] opacity-40 mt-2 dark:text-white/40">Auto-compressed to ~150KB</p>
           </div>
 
-          <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Title e.g. iPhone 13 Neat" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
-          <input value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Price e.g. GH₵ 4200" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
-          <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white">
+          <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Title e.g. iPhone 13 Neat" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white transition-colors" />
+          <input value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Price e.g. GH₵ 4200" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white transition-colors" />
+          <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white transition-colors">
             <option>Phones</option><option>Fashion</option><option>Electronics</option><option>Shoes</option><option>Furniture</option><option>Books</option><option>Other</option>
           </select>
-          <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Location e.g. Ayeduase" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
+          <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Location e.g. Ayeduase" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white transition-colors" />
           <div>
-            <input value={form.whatsapp} onChange={e => { setForm({ ...form, whatsapp: e.target.value }); if (e.target.value.length >= 9) checkSellerCount(e.target.value); }} onBlur={e => checkSellerCount(e.target.value)} placeholder="WhatsApp e.g. 233540000001" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white" />
+            <input value={form.whatsapp} onChange={e => { setForm({ ...form, whatsapp: e.target.value }); if (e.target.value.length >= 9) checkSellerCount(e.target.value); }} onBlur={e => checkSellerCount(e.target.value)} placeholder="WhatsApp e.g. 233540000001" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white transition-colors" />
             {form.whatsapp.length >= 9 && (
               <p className={`text-[10px] mt-1.5 px-2 ${sellerCount >= 30 ? "text-red-500 font-bold" : sellerCount >= 20 ? "text-yellow-600" : "text-green-600"}`}>
                 📦 You have {sellerCount}/{MAX_PER_SELLER} products {sellerCount >= 30 ? "— MAX REACHED!" : sellerCount >= 25 ? "— Almost full!" : ""}
@@ -264,7 +277,7 @@ export default function SellPage() {
             )}
           </div>
 
-          <div className="p-3 rounded-[18px] bg-zinc-50 dark:bg-zinc-900 border border-black/5 dark:border-white/10">
+          <div className="p-3 rounded-[18px] bg-zinc-50 dark:bg-zinc-900 border border-black/5 dark:border-white/10 transition-colors">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={hasCollection} onChange={e => setHasCollection(e.target.checked)} className="w-4 h-4 rounded accent-[#0d9488]" />
               <span className="text-[11px] font-bold dark:text-white">I have a collection with KSOM</span>
