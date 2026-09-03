@@ -1,44 +1,204 @@
 "use client";
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabaseClient";
+
+const VAPID_PUBLIC_KEY = "BNYpK03VyTYpD0MztEknakF3Gscvwkm4C2qb7yvwfnE235vBCUFF650d1fZPPY5AvS27K_h0yH4ptdeHWaFHfwQ";
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 export function InstallPWA() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [permission, setPermission] = useState<NotificationPermission | "default">("default");
+  const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
+    // Check if already installed (standalone)
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsInstalled(true);
+      return;
+    }
+
+    if ('Notification' in window) {
+      setPermission(Notification.permission);
+    }
+
+    // Check push subscription
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.ready.then(async (reg) => {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) setPushEnabled(true);
+      }).catch(() => { });
+    }
+
+    // Check if user dismissed install recently - show again after 1 day
+    const dismissedAt = localStorage.getItem('ksom-install-dismissed-at');
+    if (dismissedAt) {
+      const oneDay = 24 * 60 * 60 * 1000;
+      if (Date.now() - parseInt(dismissedAt) < oneDay) {
+        console.log('Install banner dismissed, will show again tomorrow');
+        // Don't show install now, but still allow push banner
+      } else {
+        // Expired, clear and allow show
+        localStorage.removeItem('ksom-install-dismissed-at');
+      }
+    }
+
     const handler = (e: any) => {
       e.preventDefault();
+      // Only show if not dismissed recently
+      const dismissed = localStorage.getItem('ksom-install-dismissed-at');
+      if (dismissed) {
+        const oneDay = 24 * 60 * 60 * 1000;
+        if (Date.now() - parseInt(dismissed) < oneDay) return;
+      }
       setDeferredPrompt(e);
       setShowInstall(true);
+      console.log('✅ Install prompt ready - banner will show till installed');
     };
+
     window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+
+    // Also show after 5 seconds if not installed and not dismissed (for testing)
+    const timeout = setTimeout(() => {
+      if (!isInstalled && !showInstall) {
+        const dismissed = localStorage.getItem('ksom-install-dismissed-at');
+        if (!dismissed || Date.now() - parseInt(dismissed) > 24 * 60 * 60 * 1000) {
+          // If deferredPrompt exists, show
+          if (deferredPrompt) setShowInstall(true);
+        }
+      }
+    }, 5000);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      clearTimeout(timeout);
+    };
   }, []);
 
+  const handleLater = () => {
+    // Save dismissed time - will come back after 1 day
+    localStorage.setItem('ksom-install-dismissed-at', Date.now().toString());
+    setShowInstall(false);
+    console.log('User clicked Later - banner will come back tomorrow');
+  };
+
+  const enablePush = async () => {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('Push not supported');
+        return;
+      }
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      const perm = await Notification.requestPermission();
+      setPermission(perm);
+      if (perm !== 'granted') {
+        alert('Please allow notifications to get badge on home screen!');
+        return;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+      const supabase = createClient();
+      await supabase.from('push_subscriptions').insert([{
+        subscription: sub.toJSON(),
+        endpoint: sub.endpoint,
+        created_at: new Date().toISOString(),
+      }]);
+      setPushEnabled(true);
+      if ('setAppBadge' in navigator) {
+        (navigator as any).setAppBadge(1).catch(() => { });
+        setTimeout(() => {
+          if ('clearAppBadge' in navigator) (navigator as any).clearAppBadge().catch(() => { });
+        }, 2000);
+      }
+      alert('✅ Enabled! You will get badge on home screen even when closed!');
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    } catch (e: any) {
+      alert('Failed: ' + e.message);
+    }
+  };
+
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
+    if (!deferredPrompt) {
+      // Fallback: show manual instructions
+      alert('To install:\n\n1. Tap menu (3 dots) in Chrome\n2. Tap "Add to Home Screen" or "Install App"\n3. Tap Install');
+      return;
+    }
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
+    console.log('Install outcome:', outcome);
+    if (outcome === 'accepted') {
       setShowInstall(false);
+      localStorage.removeItem('ksom-install-dismissed-at');
+    } else {
+      // User dismissed install prompt, treat as Later
+      handleLater();
     }
     setDeferredPrompt(null);
   };
 
+  // If already installed, don't show install banner, but still show push enable if needed
+  if (isInstalled) {
+    if (!pushEnabled && permission !== 'denied' && 'Notification' in window) {
+      return (
+        <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-[#0d9488] flex items-center justify-center text-white font-bold">🔔</div>
+            <div>
+              <p className="text-sm font-bold">Enable Notifications</p>
+              <p className="text-xs opacity-70">Get badge on app icon when new product!</p>
+            </div>
+          </div>
+          <button onClick={enablePush} className="bg-[#0d9488] text-white text-xs font-bold px-4 py-2 rounded-full">Enable</button>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  // Show push enable first if not enabled
+  if (!pushEnabled && permission !== 'denied' && 'Notification' in window && Notification.permission !== 'granted') {
+    return (
+      <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-[#0d9488] flex items-center justify-center text-white font-bold">🔔</div>
+          <div>
+            <p className="text-sm font-bold">Enable Notifications</p>
+            <p className="text-xs opacity-70">Get badge on app icon when new product!</p>
+          </div>
+        </div>
+        <button onClick={enablePush} className="bg-[#0d9488] text-white text-xs font-bold px-4 py-2 rounded-full animate-pulse">Enable</button>
+      </div>
+    );
+  }
+
+  // Show install banner - ALWAYS till installed! Later makes it come back tomorrow!
   if (!showInstall) return null;
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-[60] bg-navy text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
+    <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-navy font-bold">P</div>
+        <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-[#0f172a] font-bold">P</div>
         <div>
           <p className="text-sm font-bold">Install Prima KSOM</p>
-          <p className="text-xs opacity-70">Add to home screen for fast access</p>
+          <p className="text-xs opacity-70">Add to home screen for badge + fast access</p>
         </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => setShowInstall(false)} className="text-xs px-3 py-2 opacity-60">Later</button>
-        <button onClick={handleInstall} className="bg-teal text-white text-xs font-bold px-4 py-2 rounded-full">Install</button>
+        <button onClick={handleLater} className="text-xs px-3 py-2 opacity-60 hover:opacity-100">Later</button>
+        <button onClick={handleInstall} className="bg-[#0d9488] text-white text-xs font-bold px-4 py-2 rounded-full">Install</button>
       </div>
     </div>
   );
