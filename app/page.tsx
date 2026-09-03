@@ -22,11 +22,13 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
     const myWhatsApp = localStorage.getItem("ksm_whatsapp") || localStorage.getItem("ksm_seller_whatsapp") || "";
     const channel = supabase.channel('ksom-notif-v12').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'products' }, (payload) => {
       const newProduct = payload.new as any;
-      // 🚫 Don't notify for own posts
+      // 🚫 Don't notify for own posts (but allow for testing if different phone)
       const myWa = (myWhatsApp || "").replace(/[^0-9]/g, '').slice(-9);
       const prodWa = String(newProduct.whatsapp || "").replace(/[^0-9]/g, '').slice(-9);
       if (myWa && prodWa && myWa === prodWa) {
-        console.log("Skipping notif for own post");
+        // For testing, still vibrate even for own post if you want
+        // Comment this return if you want to test with same WhatsApp
+        console.log("Skipping notif for own post - use different WhatsApp to test!");
         return;
       }
       const newNotif = { id: Date.now().toString() + "_" + newProduct.id, type: "product", title: "New product on KSOM", message: `${newProduct.title} • ${newProduct.price}`, created_at: new Date().toISOString(), read: false, image: newProduct.image_url, productId: newProduct.id };
@@ -45,21 +47,22 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
           (navigator as any).setAppBadge(newUnread).catch(() => { });
         }
       } catch { }
-      // ✅ VIBRATION - Works even in background, more robust
+      // ✅ VIBRATION - OLD PULSING THAT WORKED + STRONGER!
       try {
-        // Try multiple times to ensure vibration
-        if ('vibrate' in navigator) {
-          navigator.vibrate([300, 100, 300, 100, 300]);
-          // Second attempt after 100ms for some phones
-          setTimeout(() => {
-            try { navigator.vibrate([300, 100, 300]); } catch { }
-          }, 100);
+        if (navigator.vibrate) {
+          // Strong vibration like old pulsing version that worked for you!
+          navigator.vibrate([200, 100, 200, 100, 400]);
+          // Extra strong after delay
+          setTimeout(() => { try { navigator.vibrate([500]); } catch { } }, 200);
+          setTimeout(() => { try { navigator.vibrate([200, 100, 200]); } catch { } }, 800);
         }
-      } catch { }
-      // Also vibrate via service worker if available (for better reliability)
+      } catch (e) {
+        console.log("Vibrate failed", e);
+      }
+      // Also try via SW
       try {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({ type: 'VIBRATE', pattern: [300, 100, 300] });
+          navigator.serviceWorker.controller.postMessage({ type: 'VIBRATE' });
         }
       } catch { }
       window.dispatchEvent(new Event('ksom-notif-update'));
@@ -105,10 +108,16 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
 
   return (
     <div className="relative">
-      <button onClick={() => { setShow(!show); if (!show) markRead(); }} className={`relative w-10 h-10 rounded-full grid place-items-center backdrop-blur border transition-all active:scale-90 ${isDark ? "bg-white/10 border-white/20 text-white" : "bg-black/5 border-black/10 text-black"}`}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 8a6 6 0 0 1 12 0c0 7 6 9 6 9H0s6-2 6-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+      {hasNew && unread > 0 && (
+        <>
+          <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-30"></span>
+          <span className="absolute inset-0 rounded-full bg-red-500 animate-pulse opacity-20 blur-[2px]"></span>
+        </>
+      )}
+      <button onClick={() => { setShow(!show); if (!show) markRead(); }} className={`relative w-10 h-10 rounded-full grid place-items-center backdrop-blur border transition-all active:scale-90 ${hasNew ? "shadow-[0_0_0_4px_rgba(239,68,68,0.25)] animate-[notifPulse_2s_ease-in-out_infinite]" : ""} ${isDark ? "bg-white/10 border-white/20 text-white" : "bg-black/5 border-black/10 text-black"}`}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={hasNew ? "animate-[bellRing_1.5s_ease-in-out_infinite]" : ""}><path d="M6 8a6 6 0 0 1 12 0c0 7 6 9 6 9H0s6-2 6-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
         {hasNew && unread > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-1 border-2 border-white dark:border-[#1e1e1e]">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-1 border-2 border-white dark:border-[#1e1e1e] animate-[badgePop_0.5s_ease-out]">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -362,6 +371,52 @@ export default function HomeV11() {
     return () => document.removeEventListener('visibilitychange', handleVisible);
   }, [products]);
 
+  // 🔔 SMART ENGAGEMENT NUDGES - No server needed, no deployment fail!
+  useEffect(() => {
+    const checkNudges = () => {
+      try {
+        const now = new Date();
+        const day = now.getDay();
+        const date = now.getDate();
+        const hour = now.getHours();
+        const lastNudge = localStorage.getItem('ksm_last_nudge');
+        const lastNudgeTime = lastNudge ? parseInt(lastNudge) : 0;
+        const hoursSinceLastNudge = (Date.now() - lastNudgeTime) / (1000 * 60 * 60);
+        if (hoursSinceLastNudge < 36) return;
+        const isNudgeDay = [1, 3, 5, 0, 6].includes(day) || [1, 15].includes(date) || (day === 0 || day === 6) && hour >= 18;
+        const isPrimeTime = hour >= 8 && hour <= 21;
+        if (!isNudgeDay || !isPrimeTime) return;
+        const nudgeMessages = [
+          { title: "🔥 What's popping on KSOM?", message: "New items just dropped near you - tap to see!", image: "/ksom-icon.png" },
+          { title: "👀 Someone posted near Ayeduase", message: "Checkout what's going on KSOM right now", image: "/ksom-icon.png" },
+          { title: "💬 Your campus market is buzzing", message: "10+ new items today - don't miss out!", image: "/ksom-icon.png" },
+          { title: "🎉 Weekend deals live on KSOM", message: "Students are selling fast - open KSOM!", image: "/ksom-icon.png" },
+          { title: "📦 Fresh drop on KSOM!", message: "New phones, shoes & more - tap to explore", image: "/ksom-icon.png" },
+        ];
+        const lastMsgIdx = parseInt(localStorage.getItem('ksm_last_nudge_idx') || '-1');
+        let idx = Math.floor(Math.random() * nudgeMessages.length);
+        if (idx === lastMsgIdx) idx = (idx + 1) % nudgeMessages.length;
+        const chosen = nudgeMessages[idx];
+        const newNotif = { id: `nudge_${Date.now()}`, type: "nudge", title: chosen.title, message: chosen.message, created_at: new Date().toISOString(), read: false, image: chosen.image, isNudge: true };
+        const current = JSON.parse(localStorage.getItem("ksm_notifications") || "[]");
+        const hasRecentNudge = current.slice(0, 3).some((n: any) => n.isNudge);
+        if (hasRecentNudge) return;
+        const updated = [newNotif, ...current].slice(0, 20);
+        localStorage.setItem("ksm_notifications", JSON.stringify(updated));
+        localStorage.setItem('ksm_last_nudge', Date.now().toString());
+        localStorage.setItem('ksm_last_nudge_idx', idx.toString());
+        window.dispatchEvent(new Event('ksom-notif-update'));
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try { new Notification(chosen.title, { body: chosen.message, icon: '/ksom-icon.png', badge: '/ksom-icon.png' }); } catch { }
+        }
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      } catch (e) { }
+    };
+    const initialTimeout = setTimeout(checkNudges, 10000);
+    const interval = setInterval(checkNudges, 4 * 60 * 60 * 1000);
+    return () => { clearTimeout(initialTimeout); clearInterval(interval); };
+  }, []);
+
 
   useEffect(() => {
     const len = adverts.length > 0 ? adverts.length : 3;
@@ -468,7 +523,7 @@ export default function HomeV11() {
         <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-[#0f172a] grid place-items-center text-[#d4af37] font-extrabold text-[11px]">P</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
       </div>
 
-      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
+      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
 
       <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{search}&quot; — {filtered.length} found</p>}</div>
 
@@ -563,6 +618,11 @@ export default function HomeV11() {
 
       <div className="mt-8 px-5"><div className="rounded-[18px] p-4 border flex justify-between items-center" style={{ background: "#0d9488", borderColor: "#0d9488" }}><div><p className="text-white text-[12px] font-bold">Want to advertise?</p><p className="text-white/80 text-[10px]">Let me run your ads for you</p></div><a href="/advertise" className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full">Contact Me →</a></div></div>
 
+      <div className="mt-6 text-center pb-6">
+        <p className="text-[12px] tracking-[0.4em] opacity-30 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
+        <p className="text-[8px] tracking-[0.2em] opacity-20 mt-1 uppercase">Built with love for KNUST</p>
+      </div>
+
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
         <div className={`flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] ${isDark ? "bg-[#1e1e1e]/90 border-white/10" : "bg-white/90 border-black/10"}`}>
           <a href="/" className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>
@@ -624,7 +684,12 @@ export default function HomeV11() {
         </div>
       )}
 
-      <style>{`.cats-smooth-v2{scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scroll-padding:0 50%}.cats-smooth-v2::-webkit-scrollbar{display:none}.cats-smooth-v2 button{transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important}`}</style>
+      <style>{`
+        .cats-smooth-v2{scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scroll-padding:0 50%}.cats-smooth-v2::-webkit-scrollbar{display:none}.cats-smooth-v2 button{transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important}
+        @keyframes notifPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+        @keyframes bellRing{0%,100%{transform:rotate(0)}15%{transform:rotate(15deg)}30%{transform:rotate(-15deg)}45%{transform:rotate(10deg)}60%{transform:rotate(-10deg)}75%{transform:rotate(5deg)}}
+        @keyframes badgePop{0%{transform:scale(0)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
+      `}</style>
     </div>
   );
 }

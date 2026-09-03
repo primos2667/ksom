@@ -171,9 +171,14 @@ export function InstallPWA() {
     setDeferredPrompt(null);
   };
 
+  // ✅ SSR SAFE - Don't render notification UI on server (window is not defined during build)
+  if (typeof window === 'undefined') return null;
+
   // If already installed, don't show install banner, but still show push enable if needed
   if (isInstalled) {
-    if (permission !== 'denied' && 'Notification' in window && (Notification as any).permission !== 'granted') {
+    const notifExists = typeof window !== 'undefined' && 'Notification' in window;
+    const perm = notifExists ? (Notification as any).permission : 'default';
+    if (permission !== 'denied' && notifExists && perm !== 'granted') {
       return (
         <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
           <div className="flex items-center gap-3">
@@ -190,23 +195,26 @@ export function InstallPWA() {
     return null;
   }
 
-  // ✅ ALWAYS show Enable first if not granted - PRIORITY over Install!
-  if (permission !== 'denied' && 'Notification' in window && (Notification as any).permission !== 'granted') {
-    // Even if pushEnabled true but no permission, still show
-    const alreadySubscribed = typeof window !== 'undefined' && localStorage.getItem('ksom-push-enabled');
-    if (!alreadySubscribed || (Notification as any).permission !== 'granted') {
-      return (
-        <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-[#0d9488] flex items-center justify-center text-white font-bold">🔔</div>
-            <div>
-              <p className="text-sm font-bold">Enable Notifications</p>
-              <p className="text-xs opacity-70">Get badge on app icon when new product!</p>
+  // ✅ ALWAYS show Enable first if not granted - PRIORITY over Install! - SSR SAFE
+  if (typeof window !== 'undefined') {
+    const notifExists = 'Notification' in window;
+    const currentPerm = notifExists ? (Notification as any).permission : 'default';
+    if (permission !== 'denied' && notifExists && currentPerm !== 'granted') {
+      const alreadySubscribed = localStorage.getItem('ksom-push-enabled');
+      if (!alreadySubscribed || currentPerm !== 'granted') {
+        return (
+          <div className="fixed bottom-20 left-4 right-4 z-[60] bg-[#0f172a] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-[#0d9488] flex items-center justify-center text-white font-bold">🔔</div>
+              <div>
+                <p className="text-sm font-bold">Enable Notifications</p>
+                <p className="text-xs opacity-70">Get badge on app icon when new product!</p>
+              </div>
             </div>
+            <button onClick={enablePush} className="bg-[#0d9488] text-white text-xs font-bold px-4 py-2 rounded-full animate-pulse">Enable</button>
           </div>
-          <button onClick={enablePush} className="bg-[#0d9488] text-white text-xs font-bold px-4 py-2 rounded-full animate-pulse">Enable</button>
-        </div>
-      );
+        );
+      }
     }
   }
 
