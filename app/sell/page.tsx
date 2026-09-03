@@ -117,6 +117,8 @@ export default function SellPage() {
   };
 
   const submit = async () => {
+    // 🚫 FIX: Prevent double tap - if already posting, block (fixes 2 same images bug)
+    if (loading) return;
     if (storageStatus?.blocked) {
       alert(`🚫 KSOM Storage is ${storageStatus.percent}% full! We stop at 80% to keep app fast.\n\n🧹 Next auto-clean: ${storageStatus.nextClean} (in ${storageStatus.daysToClean} days)\n\nOld products >90 days will be removed automatically.`);
       return;
@@ -128,6 +130,23 @@ export default function SellPage() {
     if (!imageUrl) {
       alert("Please upload image first");
       return;
+    }
+    // 🚫 FIX: Block blob: URLs - must be real uploaded image
+    if (imageUrl.startsWith("blob:")) {
+      alert("Image not fully uploaded yet! Please wait for upload to finish, or try again.");
+      return;
+    }
+    // 🚫 FIX: Prevent posting same title within 10 seconds
+    const lastPost = localStorage.getItem("ksom_last_post");
+    const now = Date.now();
+    if (lastPost) {
+      try {
+        const { title, time } = JSON.parse(lastPost);
+        if (title === form.title && now - time < 10000) {
+          alert("You just posted this! Wait 10 seconds to avoid duplicate.");
+          return;
+        }
+      } catch { }
     }
 
     setLoading(true);
@@ -164,13 +183,14 @@ export default function SellPage() {
     if (error) {
       alert(error.message);
     } else {
+      localStorage.setItem("ksom_last_post", JSON.stringify({ title: form.title, time: Date.now() }));
       setShowSuccess(true);
       checkStorageLimit();
     }
   };
 
   const handleShareWhatsApp = () => {
-    const waMessage = `🚀 NEW ON KSOM!\n\n📦 ${form.title}\n💰 ${form.price}\n📍 ${form.location}\n${form.seller_name ? `🏪 ${form.seller_name}\n` : ""}\nCheck: https://ksom.vercel.app\n\nJoin: https://chat.whatsapp.com/JDF0gdFMiQQKz9GslNGWav`;
+    const waMessage = `🚀 NEW ON KSOM!\n\n📦 ${form.title}\n💰 ${form.price}\n📍 ${form.location}\n${form.seller_name ? `🏪 ${form.seller_name}\n` : ""}Check: https://ksom.vercel.app\n\nJoin: https://chat.whatsapp.com/JDF0gdFMiQQKz9GslNGWav`;
     window.open(`https://wa.me/?text=${encodeURIComponent(waMessage)}`, "_blank");
     setShowSuccess(false);
     setForm({ title: "", price: "", category: "Phones", location: "", whatsapp: "", seller_name: form.seller_name });

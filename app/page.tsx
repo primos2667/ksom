@@ -19,9 +19,20 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
     }
 
     const supabase = createClient();
-    const channel = supabase.channel('ksom-notif-v11').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'products' }, (payload) => {
-      const newNotif = { id: Date.now().toString(), type: "product", title: "New product on KSOM", message: `${(payload.new as any).title} • ${(payload.new as any).price}`, created_at: new Date().toISOString(), read: false, image: (payload.new as any).image_url };
+    const myWhatsApp = localStorage.getItem("ksm_whatsapp") || localStorage.getItem("ksm_seller_whatsapp") || "";
+    const channel = supabase.channel('ksom-notif-v12').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'products' }, (payload) => {
+      const newProduct = payload.new as any;
+      // 🚫 Don't notify for own posts
+      const myWa = (myWhatsApp || "").replace(/[^0-9]/g, '').slice(-9);
+      const prodWa = String(newProduct.whatsapp || "").replace(/[^0-9]/g, '').slice(-9);
+      if (myWa && prodWa && myWa === prodWa) {
+        console.log("Skipping notif for own post");
+        return;
+      }
+      const newNotif = { id: Date.now().toString() + "_" + newProduct.id, type: "product", title: "New product on KSOM", message: `${newProduct.title} • ${newProduct.price}`, created_at: new Date().toISOString(), read: false, image: newProduct.image_url, productId: newProduct.id };
       const current = JSON.parse(localStorage.getItem("ksm_notifications") || "[]");
+      // 🚫 Prevent duplicate notifs for same product
+      if (current.some((n: any) => n.productId === newProduct.id)) return;
       const updated = [newNotif, ...current].slice(0, 20);
       localStorage.setItem("ksm_notifications", JSON.stringify(updated));
       setNotifs(updated);
@@ -31,11 +42,13 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
         (navigator as any).setAppBadge(newUnread).catch(() => { });
       }
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      // Dispatch event for other components (bottom nav badge)
       window.dispatchEvent(new Event('ksom-notif-update'));
     }).subscribe((status) => {
-      if (status === 'SUBSCRIBED') console.log('KSOM notif realtime ON');
-      if (status === 'CHANNEL_ERROR') console.warn('Realtime error - enable Realtime in Supabase > Database > products table');
+      if (status === 'SUBSCRIBED') console.log('KSOM notif realtime ON v12');
+      if (status === 'CHANNEL_ERROR') {
+        console.warn('Realtime error - Enable Realtime in Supabase Dashboard > Database > products > Enable Realtime!');
+        console.warn('Fix: Go to Supabase > Database > Tables > products > Enable Realtime toggle ON');
+      }
     });
 
     // Listen for updates from other tabs/components
@@ -196,7 +209,7 @@ export default function HomeV11() {
         // Check if today is clean day (Jan 1, Apr 1, Jul 1, Oct 1) OR if storage is over 85%
         const isCleanDay = (now.getDate() === 1 && [0, 3, 6, 9].includes(now.getMonth()));
         const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
-        const isOverLimit = (count || 0) >= 350; // 87.5% of 400
+        const isOverLimit = (count || 0) >= 2400; // 80% of 3000
 
         if (isCleanDay || isOverLimit) {
           console.log("🧹 Auto-clean triggered!", { isCleanDay, isOverLimit, count });
@@ -257,12 +270,50 @@ export default function HomeV11() {
     };
   }, []);
 
-  // 🔄 AUTO REFRESH EVERY 10 SECONDS (Jumia style - less frequent for performance)
+  // 🔄 REALTIME + AUTO REFRESH - No need to manually refresh for views!
+  useEffect(() => {
+    const supabase = createClient();
+
+    // 🔔 Realtime: Listen for NEW products and VIEW updates
+    const channel = supabase.channel('ksom-products-realtime-v2')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'products' }, (payload) => {
+        console.log('🔔 New product realtime:', payload.new);
+        const newProd = payload.new as any;
+        // Auto-add to top of list - no refresh needed!
+        setProducts(prev => {
+          if (prev.some((p: any) => p.id === newProd.id)) return prev; // prevent duplicate
+          return [newProd, ...prev];
+        });
+        setLastUpdate(new Date());
+        if (navigator.vibrate) navigator.vibrate([50]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, (payload) => {
+        console.log('👁 Views updated realtime:', payload.new);
+        const updated = payload.new as any;
+        // Auto-update views count without refresh!
+        setProducts(prev => prev.map((p: any) => p.id === updated.id ? { ...p, views: updated.views, ...updated } : p));
+        setViewCounts(prev => ({ ...prev, [updated.id]: updated.views || 0 }));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'products' }, (payload) => {
+        console.log('🗑 Product deleted:', payload.old);
+        setProducts(prev => prev.filter((p: any) => p.id !== (payload.old as any).id));
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') console.log('✅ KSOM realtime LIVE - auto refresh ON!');
+        if (status === 'CHANNEL_ERROR') console.warn('⚠️ Enable Realtime in Supabase for products table!');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // 🔄 Fallback polling every 15s (if realtime fails)
   useEffect(() => {
     if (!autoRefreshOn) return;
     const interval = setInterval(() => {
       fetchProducts(true);
-    }, 10000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [autoRefreshOn, products]);
 
@@ -298,10 +349,20 @@ export default function HomeV11() {
   };
 
   const incrementView = (id: string) => {
-    const newCounts = { ...viewCounts, [id]: (viewCounts[id] || 0) + 1 };
-    setViewCounts(newCounts); localStorage.setItem("ksm_views", JSON.stringify(newCounts));
+    // Optimistic update - immediate UI
+    const currentViews = viewCounts[id] || products.find((p: any) => p.id === id)?.views || 0;
+    const newCount = currentViews + 1;
+    const newCounts = { ...viewCounts, [id]: newCount };
+    setViewCounts(newCounts);
+    localStorage.setItem("ksm_views", JSON.stringify(newCounts));
+    // Update local products list immediately - no refresh needed
+    setProducts(prev => prev.map((p: any) => p.id === id ? { ...p, views: newCount } : p));
+    // Sync to DB - realtime will broadcast to other phones!
     const supabase = createClient();
-    supabase.from("products").update({ views: newCounts[id] }).eq("id", id).then(() => { });
+    supabase.from("products").update({ views: newCount }).eq("id", id).then(({ error }) => {
+      if (error) console.log("View update failed (RLS?)", error);
+      else console.log(`👁 View incremented to ${newCount} for ${id} - will auto-sync to other phones via realtime`);
+    });
   };
   const shareProduct = async (p: any) => {
     const url = `${window.location.origin}/product/${p.id}`;
