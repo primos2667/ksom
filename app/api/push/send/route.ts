@@ -22,18 +22,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'No subscriptions yet', sent: 0 });
     }
 
-    // Dynamic import web-push (install: npm install web-push)
+    // ✅ Fix: Use require with ts-ignore to avoid declaration error
     let webpush: any;
     try {
+      // @ts-ignore - web-push has no types, but works
       webpush = require('web-push');
       webpush.setVapidDetails(
         process.env.VAPID_SUBJECT || 'mailto:ksom@knust.edu.gh',
         process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
         process.env.VAPID_PRIVATE_KEY!
       );
-    } catch (e) {
-      console.log('web-push not installed, skipping actual send. Install with: npm install web-push');
-      return NextResponse.json({ message: 'web-push package not installed - install it to send', wouldSendTo: subs.length });
+    } catch (e: any) {
+      console.log('web-push not installed. Run: npm install web-push');
+      // Still return success for now - badge will work via setAppBadge in frontend
+      return NextResponse.json({
+        message: 'web-push not installed - install with npm install web-push',
+        wouldSendTo: subs.length,
+        note: 'For now, frontend badge still works when app open. Install web-push for background badge.'
+      });
     }
 
     const payload = JSON.stringify({
@@ -53,7 +59,6 @@ export async function POST(req: NextRequest) {
         sent++;
       } catch (err: any) {
         console.error('Failed to send to', sub.endpoint, err.message);
-        // If subscription expired (410), delete it
         if (err.statusCode === 410) {
           await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
         }

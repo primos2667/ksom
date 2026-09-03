@@ -23,10 +23,17 @@ export function InstallPWA() {
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
+    // ✅ Auto-register SW immediately so background push works even before enable
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then(() => {
+        console.log('✅ SW registered for background badge');
+      }).catch((e) => console.log('SW register failed', e));
+    }
+
     // Check if already installed (standalone)
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
       setIsInstalled(true);
-      return;
+      // Still continue to check push, don't return
     }
 
     if ('Notification' in window) {

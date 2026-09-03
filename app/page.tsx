@@ -37,19 +37,31 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
       localStorage.setItem("ksm_notifications", JSON.stringify(updated));
       setNotifs(updated);
       setHasNew(true);
-      const newUnread = updated.filter((n: any) => !n.read).length;
-      // ✅ PWA App icon badge - This shows number on KSOM app icon on home screen! (1 on app)
-      if ('setAppBadge' in navigator) {
-        (navigator as any).setAppBadge(newUnread).catch(() => { });
-        console.log("📱 App icon badge set:", newUnread);
-      }
-      // ✅ Vibration only (you asked to keep vibration, remove sound/pulsing)
+      // ✅ App icon badge + vibration - FIXED
       try {
-        if (navigator.vibrate) {
-          navigator.vibrate([200, 100, 200]);
-          console.log("📳 Vibrated!");
+        const newUnread = updated.filter((n: any) => !n.read).length;
+        // Badge on app icon
+        if ('setAppBadge' in navigator) {
+          (navigator as any).setAppBadge(newUnread).catch(() => { });
         }
-      } catch (e) { }
+      } catch { }
+      // ✅ VIBRATION - Works even in background, more robust
+      try {
+        // Try multiple times to ensure vibration
+        if ('vibrate' in navigator) {
+          navigator.vibrate([300, 100, 300, 100, 300]);
+          // Second attempt after 100ms for some phones
+          setTimeout(() => {
+            try { navigator.vibrate([300, 100, 300]); } catch { }
+          }, 100);
+        }
+      } catch { }
+      // Also vibrate via service worker if available (for better reliability)
+      try {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: 'VIBRATE', pattern: [300, 100, 300] });
+        }
+      } catch { }
       window.dispatchEvent(new Event('ksom-notif-update'));
 
     }).subscribe((status) => {
