@@ -598,7 +598,13 @@ export default function HomeV11() {
 
       <MorningNews isDark={isDark} />
 
-      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
+      <div className="px-5 pt-8 pb-5 text-center">
+        <h1 className="text-[30px] font-[800] leading-[0.9] tracking-tight mx-auto">Students&apos; online<br />market</h1>
+        <div className="mt-6 flex flex-col items-center gap-3 justify-center">
+          <div className={`inline-flex rounded-full px-4 py-2 text-[11px] border ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div>
+          <a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="bg-[#0d9488] text-white text-[12px] font-bold px-6 py-2 rounded-full flex items-center gap-1 active:scale-95 transition-transform shadow-sm">Join Community →</a>
+        </div>
+      </div>
 
       <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{search}&quot; — {filtered.length} found</p>}</div>
 
@@ -693,6 +699,12 @@ export default function HomeV11() {
 
       <div className="mt-8 px-5"><div className="rounded-[18px] p-4 border flex justify-between items-center" style={{ background: "#0d9488", borderColor: "#0d9488" }}><div><p className="text-white text-[12px] font-bold">Want to advertise?</p><p className="text-white/80 text-[10px]">Let me run your ads for you</p></div><a href="/advertise" className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full">Contact Me →</a></div></div>
 
+      <div className="mt-6 text-center pb-6">
+        <p className="text-[12px] tracking-[0.4em] opacity-60 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
+        <p className="text-[8px] tracking-[0.2em] opacity-50 mt-1 uppercase">Built for 🫵🏾</p>
+      </div>
+
+
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
         <div className={`flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] ${isDark ? "bg-[#1e1e1e]/90 border-white/10" : "bg-white/90 border-black/10"}`}>
           <a href="/" className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>
@@ -753,12 +765,6 @@ export default function HomeV11() {
           </div>
         </div>
       )}
-
-
-      <div className="mt-10 text-center pb-8">
-        <p className="text-[12px] tracking-[0.4em] opacity-30 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
-        <p className="text-[10px] tracking-[0.2em] opacity-40 mt-1 uppercase flex items-center justify-center gap-1">Built for 🫵</p>
-      </div>
 
       <style>{`.cats-smooth-v2{scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scroll-padding:0 50%}.cats-smooth-v2::-webkit-scrollbar{display:none}.cats-smooth-v2 button{transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important}`}</style>
     </div>
