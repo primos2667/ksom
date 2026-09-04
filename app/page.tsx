@@ -163,7 +163,7 @@ function MorningNews({ isDark }: { isDark: boolean }) {
         id: "3",
         title: "Scholarship: 500 to study in UK 🎓",
         summary: "Ghana government announces full scholarship for STEM students...",
-        image_url: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800",
+        image_url: "https://www.pexels.com/photo/a-black-student-looking-at-certificate-of-graduation-9829305/",
         source: "GhanaWeb",
         url: "https://www.ghanaweb.com",
         category: "Education",
@@ -598,7 +598,7 @@ export default function HomeV11() {
 
       <MorningNews isDark={isDark} />
 
-      <div className="px-5 pt-8 pb-5 text-center">
+      <div className="px-5 pt-8 pb-3 text-center">
         <h1 className="text-[30px] font-[800] leading-[0.9] tracking-tight mx-auto">Students&apos; online<br />market</h1>
         <div className="mt-6 flex flex-col items-center gap-3 justify-center">
           <div className={`inline-flex rounded-full px-4 py-2 text-[11px] border ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div>
