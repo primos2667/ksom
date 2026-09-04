@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { compressImage } from "@/lib/compressImage";
 
 
 function MorningNewsUploader({ onUploaded }: { onUploaded: () => void }) {
@@ -11,12 +12,18 @@ function MorningNewsUploader({ onUploaded }: { onUploaded: () => void }) {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const supabase = createClient();
-    const fileName = "news-" + Date.now() + "-" + file.name.replace(/[^a-zA-Z0-9.-]/g, "");
-    const { error } = await supabase.storage.from("product-images").upload(fileName, file);
-    if (!error) {
-      const { data } = supabase.storage.from("product-images").getPublicUrl(fileName);
-      setForm({ ...form, image_url: data.publicUrl });
+    try {
+      const supabase = createClient();
+      // 🔥 Auto compress like sell page - 5MB → ~150KB for fast site!
+      const compressedFile = await compressImage(file, 800, 0.7);
+      const fileName = "news-" + Date.now() + "-" + compressedFile.name.replace(/[^a-zA-Z0-9.-]/g, "");
+      const { error } = await supabase.storage.from("product-images").upload(fileName, compressedFile);
+      if (!error) {
+        const { data } = supabase.storage.from("product-images").getPublicUrl(fileName);
+        setForm({ ...form, image_url: data.publicUrl });
+      }
+    } catch (err) {
+      console.error(err);
     }
     setUploading(false);
   };

@@ -140,16 +140,6 @@ function MorningNews({ isDark }: { isDark: boolean }) {
   useEffect(() => {
     const defaultNews = [
       {
-        id: "1",
-        title: "Ghana Black Stars qualify for AFCON 2026! 🇬🇭",
-        summary: "Black Stars beat Nigeria 2-1 in thrilling match at Kumasi...",
-        image_url: "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800",
-        source: "BBC Sport",
-        url: "https://www.bbc.com/sport/football",
-        category: "Sports",
-        time: "2h ago"
-      },
-      {
         id: "2",
         title: "KNUST gets $10M tech hub from Google 💻",
         summary: "New AI lab to open at College of Engineering next semester...",
@@ -160,10 +150,20 @@ function MorningNews({ isDark }: { isDark: boolean }) {
         time: "5h ago"
       },
       {
+        id: "1",
+        title: "Ghana Black Stars qualify for AFCON 2026! 🇬🇭",
+        summary: "Black Stars beat Nigeria 2-1 in thrilling match at Kumasi...",
+        image_url: "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800",
+        source: "BBC Sport",
+        url: "https://www.bbc.com/sport/football",
+        category: "Sports",
+        time: "2h ago"
+      },
+      {
         id: "3",
         title: "Scholarship: 500 to study in UK 🎓",
         summary: "Ghana government announces full scholarship for STEM students...",
-        image_url: "https://www.pexels.com/photo/a-black-student-looking-at-certificate-of-graduation-9829305/",
+        image_url: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800",
         source: "GhanaWeb",
         url: "https://www.ghanaweb.com",
         category: "Education",
@@ -202,7 +202,7 @@ function MorningNews({ isDark }: { isDark: boolean }) {
         <div className="relative rounded-[20px] overflow-hidden bg-black h-[210px]">
           {news.map((item, idx) => (
             <div key={item.id} className={`absolute inset-0 transition-opacity duration-700 ${idx === current ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-              <img src={item.image_url} className="w-full h-full object-cover" alt="" />
+              <img src={item.image_url} className="w-full h-full object-cover object-top" style={{ objectPosition: "center top" }} alt="" />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
               <div className="absolute top-3 left-3 flex gap-1.5">
                 <span className="bg-red-500 text-white text-[9px] font-bold px-2.5 py-1 rounded-full">{item.category}</span>
