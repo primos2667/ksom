@@ -6,17 +6,17 @@ import { compressImage } from "@/lib/compressImage";
 
 export default function SellPage() {
   const router = useRouter();
-  const [isSeller, setIsSeller] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [hasCollection, setHasCollection] = useState(false);
+  const [isSeller, setIsSeller] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [imageUrl, setImageUrl] = useState<string>("");
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [showSuccess, setShowSuccess] = useState<boolean>(false);
+  const [hasCollection, setHasCollection] = useState<boolean>(false);
   const [form, setForm] = useState({ title: "", price: "", category: "Phones", location: "", whatsapp: "", seller_name: "" });
 
   // 🔒 Storage Guard States
   const [storageStatus, setStorageStatus] = useState<{ blocked: boolean; count: number; max: number; percent: number; nextClean: string; daysToClean: number } | null>(null);
-  const [checkingStorage, setCheckingStorage] = useState(true);
+  const [checkingStorage, setCheckingStorage] = useState<boolean>(true);
   const [sellerCount, setSellerCount] = useState<number>(0);
   const MAX_PER_SELLER = 30;
 
@@ -35,13 +35,15 @@ export default function SellPage() {
       const checkCollection = async () => {
         try {
           const supabase = createClient();
-          const { data } = await supabase.from("collections").select("*").eq("seller_name", savedSellerName).eq("status", "approved").single();
+          if (!savedSellerName) return;
+          const { data } = await supabase.from("collections").select("*").eq("seller_name", savedSellerName).eq("status", "approved").maybeSingle();
           if (data) {
             setHasCollection(true);
-            // Also save that they have collection
             localStorage.setItem("ksm_has_collection", "true");
           }
-        } catch { }
+        } catch {
+          // ignore if not found
+        }
       };
       if (savedSellerName) checkCollection();
       checkStorageLimit();
@@ -129,21 +131,18 @@ export default function SellPage() {
   };
 
   const submit = async () => {
-    // 🚫 FIX: Prevent double tap - if already posting, block (fixes 2 same images bug)
     if (loading) return;
     if (storageStatus?.blocked) {
-      alert(`🚫 KSOM Storage is ${storageStatus.percent}% full! We stop at 80% to keep app fast.\n\n🧹 Next auto-clean: ${storageStatus.nextClean} (in ${storageStatus.daysToClean} days)\n\nOld products >90 days will be removed automatically.`);
+      alert(`🚫 KSOM Storage is ${storageStatus.percent}% full! We stop at 80% to keep app fast.\n\n🧹 Next auto-clean: ${storageStatus.nextClean} (in ${storageStatus.daysToClean} days)`);
       return;
     }
     // 🔒 TIGHT: If hasCollection, force seller_name from login (constant, cannot be changed to cheat)
-    const lockedSellerName = localStorage.getItem("ksm_seller_name") || "";
-    const lockedSellerId = localStorage.getItem("ksm_seller_id") || "";
+    const lockedSellerName = (typeof window !== "undefined" ? localStorage.getItem("ksm_seller_name") || "" : "");
     if (hasCollection) {
       if (!lockedSellerName) {
         alert("❌ No seller name found in login! Please login again at /login");
         return;
       }
-      // Force it - even if they tried to hack input via devtools, we use locked name
       form.seller_name = lockedSellerName;
     }
 
@@ -155,12 +154,10 @@ export default function SellPage() {
       alert("Please upload image first");
       return;
     }
-    // 🚫 FIX: Block blob: URLs - must be real uploaded image
     if (imageUrl.startsWith("blob:")) {
       alert("Image not fully uploaded yet! Please wait for upload to finish, or try again.");
       return;
     }
-    // 🚫 FIX: Prevent posting same title within 10 seconds
     const lastPost = localStorage.getItem("ksom_last_post");
     const now = Date.now();
     if (lastPost) {
@@ -185,7 +182,7 @@ export default function SellPage() {
     const myCount = await checkSellerCount(form.whatsapp);
     if (myCount >= MAX_PER_SELLER) {
       setLoading(false);
-      alert(`🚫 You have reached max ${MAX_PER_SELLER} products!\n\nYou currently have ${myCount} items on KSOM.\n\nPlease delete sold items or wait for 3-month auto-clean to add more. This prevents one seller dominating homepage.`);
+      alert(`🚫 You have reached max ${MAX_PER_SELLER} products!\n\nYou currently have ${myCount} items on KSOM.`);
       return;
     }
 
@@ -196,7 +193,7 @@ export default function SellPage() {
       location: form.location,
       whatsapp: form.whatsapp,
       image_url: imageUrl,
-      views: 0, // ✅ Start at 0 views as you set!
+      views: 0,
     };
     if (hasCollection && form.seller_name.trim()) {
       payload.seller_name = form.seller_name.trim();
@@ -211,10 +208,7 @@ export default function SellPage() {
       localStorage.setItem("ksom_last_post", JSON.stringify({ title: form.title, time: Date.now() }));
       setShowSuccess(true);
       checkStorageLimit();
-
-      // ✅ Send push notification to all users - shows badge on home screen even when app closed!
       try {
-        console.log('📤 Sending push to /api/push/send');
         fetch('/api/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -224,13 +218,13 @@ export default function SellPage() {
             image: imageUrl,
             productId: Date.now().toString(),
           }),
-        }).then(r => r.json()).then(d => console.log('Push result:', d)).catch(e => console.log('Push failed', e));
-      } catch (e) { console.log('Push error', e); }
+        }).catch(() => { });
+      } catch { }
     }
   };
 
   const handleShareWhatsApp = () => {
-    const waMessage = `🚀 NEW ON KSOM!\n\n📦 ${form.title}\n💰 ${form.price}\n📍 ${form.location}\n${form.seller_name ? `🏪 ${form.seller_name}\n` : ""}Check: https://ksom.vercel.app\n\nJoin: https://chat.whatsapp.com/JDF0gdFMiQQKz9GslNGWav`;
+    const waMessage = `🚀 NEW ON KSOM!\n\n📦 ${form.title}\n💰 ${form.price}\n📍 ${form.location}\n${form.seller_name ? `🏪 ${form.seller_name}\n` : ""}Check: https://ksom.vercel.app`;
     window.open(`https://wa.me/?text=${encodeURIComponent(waMessage)}`, "_blank");
     setShowSuccess(false);
     setForm({ title: "", price: "", category: "Phones", location: "", whatsapp: "", seller_name: form.seller_name });
@@ -245,7 +239,6 @@ export default function SellPage() {
     router.push("/");
   };
 
-  // ✅ FIXED: No white flash! Smooth dark-aware skeleton same as homepage
   if (!isSeller) {
     return (
       <div className="min-h-screen bg-[#fbfaf8] dark:bg-[#0f0f0f] p-5 pb-28">
@@ -260,7 +253,6 @@ export default function SellPage() {
             <div className="h-12 bg-black/5 dark:bg-white/5 rounded-full"></div>
             <div className="h-12 bg-black/5 dark:bg-white/5 rounded-full"></div>
             <div className="h-12 bg-black/5 dark:bg-white/5 rounded-full"></div>
-            <div className="h-12 bg-black/5 dark:bg-white/5 rounded-full"></div>
           </div>
         </div>
       </div>
@@ -271,10 +263,12 @@ export default function SellPage() {
     <div className="min-h-screen bg-[#fbfaf8] dark:bg-[#0f0f0f] p-5 pb-28 transition-colors duration-200">
       <div className="flex justify-between items-center max-w-md mx-auto">
         <h1 className="text-xl font-bold dark:text-white">Sell on KSOM</h1>
-        <a href="/" className="text-xs px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black">Home</a>
+        <div className="flex items-center gap-2">
+          <a href={`/seller/${encodeURIComponent(form.seller_name || (typeof window !== "undefined" ? localStorage.getItem("ksm_seller_name") || "" : ""))}`} className="text-[11px] px-3 py-1.5 rounded-full bg-[#0d9488] text-white font-bold flex items-center gap-1 active:scale-95">🏪 My Shop</a>
+          <a href="/" className="text-xs px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black">Home</a>
+        </div>
       </div>
 
-      {/* 🔒 STORAGE STATUS BAR */}
       {!checkingStorage && storageStatus && (
         <div className="max-w-md mx-auto mt-4">
           <div className={`rounded-[16px] p-3 border flex justify-between items-center ${storageStatus.blocked ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800" : storageStatus.percent > 60 ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800" : "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"}`}>
@@ -305,9 +299,8 @@ export default function SellPage() {
             <div className="mt-4 p-3 rounded-[12px] bg-[#fbfaf8] dark:bg-zinc-800 text-left">
               <p className="text-[11px] font-bold dark:text-white">🧹 Next Auto-Clean:</p>
               <p className="text-[13px] font-bold text-[#0d9488] mt-1">{storageStatus.nextClean}</p>
-              <p className="text-[10px] opacity-60 mt-1 dark:text-white/60">In {storageStatus.daysToClean} days, products older than 90 days will be auto-deleted to make space. Your new products can be posted after that!</p>
+              <p className="text-[10px] opacity-60 mt-1 dark:text-white/60">In {storageStatus.daysToClean} days, products older than 90 days will be auto-deleted to make space.</p>
             </div>
-            <p className="text-[10px] opacity-40 mt-4 dark:text-white/40">Tip: Delete your old sold items in /admin to free space faster!</p>
             <a href="/" className="mt-5 inline-block w-full bg-black dark:bg-white text-white dark:text-black rounded-full py-3 text-[13px] font-bold">Back to Market</a>
           </div>
         </div>
@@ -339,7 +332,7 @@ export default function SellPage() {
 
           <div className="p-3 rounded-[18px] bg-zinc-50 dark:bg-zinc-900 border border-black/5 dark:border-white/10 transition-colors">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={hasCollection} onChange={e => setHasCollection(e.target.checked)} className="w-4 h-4 rounded accent-[#0d9488]" />
+              <input type="checkbox" checked={hasCollection} onChange={(e) => setHasCollection(e.target.checked)} className="w-4 h-4 rounded accent-[#0d9488]" />
               <span className="text-[11px] font-bold dark:text-white">I have a collection with KSOM 🔒</span>
             </label>
             <p className="text-[10px] opacity-60 mt-1 dark:text-white/60">Only if you booked & admin approved at /collections. Name locked to prevent cheating!</p>
@@ -347,16 +340,11 @@ export default function SellPage() {
               <div className="mt-3 p-3 rounded-[12px] bg-[#0d9488]/10 border border-[#0d9488]/20">
                 <p className="text-[10px] font-bold text-[#0d9488] flex items-center gap-1">🔒 Your Shop Name (LOCKED - Cannot be changed)</p>
                 <div className="mt-2 w-full rounded-full px-4 py-3 border border-[#0d9488]/30 text-sm bg-zinc-100 dark:bg-zinc-800 dark:text-white flex justify-between items-center">
-                  <span className="font-bold">{form.seller_name || localStorage.getItem("ksm_seller_name") || "Not set"}</span>
+                  <span className="font-bold">{form.seller_name || "Not set"}</span>
                   <span className="text-[10px] bg-[#0d9488] text-white px-2 py-0.5 rounded-full">🔒 LOCKED</span>
                 </div>
-                <p className="text-[9px] opacity-70 mt-2 dark:text-white/60">✅ This is constant! It's your login name. You cannot change it to another seller's name - so you can't infiltrate their paid collection! Your products will ONLY show on YOUR collection page. Tight security!</p>
-                {form.seller_name && (
-                  <div className="mt-2 p-2 rounded-[10px] bg-white dark:bg-black/20">
-                    <p className="text-[9px] font-bold dark:text-white">Your collection link:</p>
-                    <p className="text-[10px] font-mono mt-1 break-all dark:text-white/80">/seller/{encodeURIComponent(form.seller_name)}</p>
-                  </div>
-                )}
+                <a href={`/seller/${encodeURIComponent(form.seller_name)}`} className="mt-2 inline-block text-[10px] px-3 py-1.5 rounded-full bg-[#0d9488] text-white">View My Collection →</a>
+                <p className="text-[9px] opacity-70 mt-2 dark:text-white/60">✅ Constant! It's your login name. You cannot change it to another seller's name - so you can't infiltrate their paid collection!</p>
               </div>
             )}
           </div>

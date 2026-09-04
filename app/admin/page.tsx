@@ -2,11 +2,65 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 
+
+function MorningNewsUploader({ onUploaded }: { onUploaded: () => void }) {
+  const [form, setForm] = useState({ title: "", summary: "", source: "BBC", url: "", category: "Tech", image_url: "" });
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const supabase = createClient();
+    const fileName = "news-" + Date.now() + "-" + file.name.replace(/[^a-zA-Z0-9.-]/g, "");
+    const { error } = await supabase.storage.from("product-images").upload(fileName, file);
+    if (!error) {
+      const { data } = supabase.storage.from("product-images").getPublicUrl(fileName);
+      setForm({ ...form, image_url: data.publicUrl });
+    }
+    setUploading(false);
+  };
+
+  const submit = async () => {
+    if (!form.title || !form.summary || !form.url || !form.image_url) { alert("Fill all fields + image"); return; }
+    const supabase = createClient();
+    const { error } = await supabase.from("morning_news").insert([{ ...form, created_at: new Date().toISOString() }]);
+    if (error) alert(error.message);
+    else {
+      alert("☀️ Morning news added! Will show on homepage top!");
+      setForm({ title: "", summary: "", source: "BBC", url: "", category: "Tech", image_url: "" });
+      onUploaded();
+    }
+  };
+
+  return (
+    <div className="mt-4 grid gap-3">
+      <div className="rounded-[12px] border border-dashed p-3 text-center">
+        {form.image_url ? <img src={form.image_url} className="w-full h-32 object-cover rounded-[12px] mb-2" /> : <p className="text-xs opacity-40 py-6">News image (210px height, bigger than advert)</p>}
+        <label className="inline-block px-4 py-2 rounded-full bg-black text-white text-xs cursor-pointer">{uploading ? "Uploading..." : "Upload Image"}<input type="file" accept="image/*" className="hidden" onChange={handleUpload} /></label>
+      </div>
+      <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Title e.g. Black Stars qualify!" className="w-full rounded-full px-4 py-2.5 border text-sm" />
+      <textarea value={form.summary} onChange={e => setForm({ ...form, summary: e.target.value })} placeholder="Summary 1 line" className="w-full rounded-[16px] px-4 py-2.5 border text-sm h-20" />
+      <div className="grid grid-cols-2 gap-2">
+        <input value={form.source} onChange={e => setForm({ ...form, source: e.target.value })} placeholder="Source BBC, TechCrunch" className="w-full rounded-full px-4 py-2.5 border text-sm" />
+        <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full rounded-full px-4 py-2.5 border text-sm">
+          <option>Tech</option><option>Sports</option><option>Education</option><option>Ghana</option><option>Entertainment</option><option>Campus</option>
+        </select>
+      </div>
+      <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="Full article URL https://bbc.com/..." className="w-full rounded-full px-4 py-2.5 border text-sm" />
+      <button onClick={submit} className="w-full bg-red-500 text-white rounded-full py-3 text-sm font-bold">☀️ Post Morning News</button>
+      <p className="text-[10px] opacity-40 text-center">Genre tip: Tech/Sports/Scholarship = highest open rate for KNUST students!</p>
+    </div>
+  );
+}
+
+
 export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
   const [adverts, setAdverts] = useState<any[]>([]);
-  const [tab, setTab] = useState<"products" | "collections" | "adverts">("products");
+  const [morningNews, setMorningNews] = useState<any[]>([]);
+  const [tab, setTab] = useState<"products" | "collections" | "adverts" | "news">("products");
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -68,14 +122,16 @@ export default function AdminPage() {
   const loadAll = async () => {
     const supabase = createClient();
     setLoading(true);
-    const [prodRes, collRes, advertRes] = await Promise.all([
+    const [prodRes, collRes, advertRes, newsRes] = await Promise.all([
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("collections").select("*").order("created_at", { ascending: false }),
-      supabase.from("adverts").select("*").order("created_at", { ascending: false })
+      supabase.from("adverts").select("*").order("created_at", { ascending: false }),
+      supabase.from("morning_news").select("*").order("created_at", { ascending: false })
     ]);
     if (prodRes.data) setProducts(prodRes.data);
     if (collRes.data) setCollections(collRes.data);
     if (advertRes.data) setAdverts(advertRes.data);
+    if (newsRes.data) setMorningNews(newsRes.data);
     setLoading(false);
   };
 
@@ -153,6 +209,13 @@ export default function AdminPage() {
     if (!error) setCollections(prev => prev.filter(c => c.id !== id));
   };
 
+  const deleteNews = async (id: string) => {
+    if (!confirm("Delete this morning news?")) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("morning_news").delete().eq("id", id);
+    if (!error) setMorningNews(prev => prev.filter(n => n.id !== id));
+  };
+
   const deleteAdvert = async (id: string) => {
     if (!confirm("Delete advert?")) return;
     const supabase = createClient();
@@ -223,11 +286,20 @@ export default function AdminPage() {
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto mt-6 flex gap-2">
+      <div className="max-w-4xl mx-auto mt-6 flex gap-2 flex-wrap">
         <button onClick={() => setTab("products")} className={`px-4 py-2 rounded-full text-xs font-bold border ${tab === "products" ? "bg-black text-white border-black dark:bg-white dark:text-black" : "bg-white text-black/60 border-black/10 dark:bg-zinc-900 dark:text-white/60"}`}>Products ({products.length})</button>
         <button onClick={() => setTab("collections")} className={`px-4 py-2 rounded-full text-xs font-bold border ${tab === "collections" ? "bg-black text-white border-black dark:bg-white dark:text-black" : "bg-white text-black/60 border-black/10 dark:bg-zinc-900 dark:text-white/60"}`}>Collections ({collections.length})</button>
         <button onClick={() => setTab("adverts")} className={`px-4 py-2 rounded-full text-xs font-bold border ${tab === "adverts" ? "bg-black text-white border-black dark:bg-white dark:text-black" : "bg-white text-black/60 border-black/10 dark:bg-zinc-900 dark:text-white/60"}`}>Adverts ({adverts.length})</button>
+        <button onClick={() => setTab("news")} className={`px-4 py-2 rounded-full text-xs font-bold border ${tab === "news" ? "bg-red-500 text-white border-red-500" : "bg-white text-black/60 border-black/10 dark:bg-zinc-900 dark:text-white/60"}`}>☀️ Morning News ({morningNews.length})</button>
       </div>
+
+      {tab === "news" && (
+        <div className="max-w-4xl mx-auto mt-4 p-4 rounded-[18px] bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/10">
+          <h3 className="text-sm font-bold dark:text-white">☀️ Upload Morning News (Bait for DAU!)</h3>
+          <p className="text-[11px] opacity-60 mt-1 dark:text-white/60">3 news daily, bigger than advert (210px). Students open for news, stay for market!</p>
+          <MorningNewsUploader onUploaded={() => loadAll()} />
+        </div>
+      )}
 
       <div className="max-w-4xl mx-auto mt-6 grid gap-3">
         {tab === "products" && products.map((p: any) => <div key={p.id} className="p-3 rounded-[18px] bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/10 flex gap-3">
@@ -255,6 +327,15 @@ export default function AdminPage() {
           <div className="flex-1">
             <p className="text-[13px] font-bold dark:text-white">{a.business_name}</p>
             <button onClick={() => deleteAdvert(a.id)} className="mt-2 text-[10px] px-3 py-1 rounded-full bg-red-500 text-white">Delete</button>
+          </div>
+        </div>)}
+
+        {tab === "news" && morningNews.map((n: any) => <div key={n.id} className="p-3 rounded-[18px] bg-white dark:bg-zinc-900 border flex gap-3">
+          <img src={n.image_url} className="w-20 h-20 rounded-[12px] object-cover" />
+          <div className="flex-1">
+            <p className="text-[13px] font-bold dark:text-white">{n.title}</p>
+            <p className="text-[10px] opacity-60 dark:text-white/60">{n.category} • {n.source} • {n.summary?.slice(0, 40)}</p>
+            <button onClick={() => deleteNews(n.id)} className="mt-2 text-[10px] px-3 py-1 rounded-full bg-red-500 text-white">Delete</button>
           </div>
         </div>)}
       </div>

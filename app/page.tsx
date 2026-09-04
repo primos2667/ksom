@@ -108,16 +108,10 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
 
   return (
     <div className="relative">
-      {hasNew && unread > 0 && (
-        <>
-          <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-30"></span>
-          <span className="absolute inset-0 rounded-full bg-red-500 animate-pulse opacity-20 blur-[2px]"></span>
-        </>
-      )}
-      <button onClick={() => { setShow(!show); if (!show) markRead(); }} className={`relative w-10 h-10 rounded-full grid place-items-center backdrop-blur border transition-all active:scale-90 ${hasNew ? "shadow-[0_0_0_4px_rgba(239,68,68,0.25)] animate-[notifPulse_2s_ease-in-out_infinite]" : ""} ${isDark ? "bg-white/10 border-white/20 text-white" : "bg-black/5 border-black/10 text-black"}`}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={hasNew ? "animate-[bellRing_1.5s_ease-in-out_infinite]" : ""}><path d="M6 8a6 6 0 0 1 12 0c0 7 6 9 6 9H0s6-2 6-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+      <button onClick={() => { setShow(!show); if (!show) markRead(); }} className={`relative w-10 h-10 rounded-full grid place-items-center backdrop-blur border transition-all active:scale-90 ${isDark ? "bg-white/10 border-white/20 text-white" : "bg-black/5 border-black/10 text-black"}`}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 8a6 6 0 0 1 12 0c0 7 6 9 6 9H0s6-2 6-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
         {hasNew && unread > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-1 border-2 border-white dark:border-[#1e1e1e] animate-[badgePop_0.5s_ease-out]">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-1 border-2 border-white dark:border-[#1e1e1e]">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -136,6 +130,131 @@ function NotificationBell({ isDark }: { isDark: boolean }) {
 }
 
 const WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/JDF0gdFMiQQKz9GslNGWav";
+
+
+function MorningNews({ isDark }: { isDark: boolean }) {
+  const [news, setNews] = useState<any[]>([]);
+  const [current, setCurrent] = useState(0);
+  const [expandedNews, setExpandedNews] = useState<any>(null);
+
+  useEffect(() => {
+    const defaultNews = [
+      {
+        id: "1",
+        title: "Ghana Black Stars qualify for AFCON 2026! 🇬🇭",
+        summary: "Black Stars beat Nigeria 2-1 in thrilling match at Kumasi...",
+        image_url: "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800",
+        source: "BBC Sport",
+        url: "https://www.bbc.com/sport/football",
+        category: "Sports",
+        time: "2h ago"
+      },
+      {
+        id: "2",
+        title: "KNUST gets $10M tech hub from Google 💻",
+        summary: "New AI lab to open at College of Engineering next semester...",
+        image_url: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800",
+        source: "TechCrunch",
+        url: "https://techcrunch.com",
+        category: "Tech",
+        time: "5h ago"
+      },
+      {
+        id: "3",
+        title: "Scholarship: 500 to study in UK 🎓",
+        summary: "Ghana government announces full scholarship for STEM students...",
+        image_url: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800",
+        source: "GhanaWeb",
+        url: "https://www.ghanaweb.com",
+        category: "Education",
+        time: "8h ago"
+      }
+    ];
+    const loadNews = async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.from("morning_news").select("*").order("created_at", { ascending: false }).limit(3);
+        if (data && data.length > 0) setNews(data);
+        else setNews(defaultNews);
+      } catch { setNews(defaultNews); }
+    };
+    loadNews();
+  }, []);
+
+  useEffect(() => {
+    if (news.length <= 1) return;
+    const timer = setInterval(() => setCurrent((prev) => (prev + 1) % news.length), 5500);
+    return () => clearInterval(timer);
+  }, [news]);
+
+  if (news.length === 0) return null;
+
+  return (
+    <>
+      <div className="px-5 mt-4">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-[11px] tracking-[0.2em] uppercase opacity-60 font-bold flex items-center gap-1.5" style={{ color: isDark ? 'white' : 'black' }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+            Your Morning News • {new Date().toLocaleDateString('en-GH', { weekday: 'long' })}
+          </h2>
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-red-500 text-white animate-pulse">LIVE</span>
+        </div>
+        <div className="relative rounded-[20px] overflow-hidden bg-black h-[210px]">
+          {news.map((item, idx) => (
+            <div key={item.id} className={`absolute inset-0 transition-opacity duration-700 ${idx === current ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+              <img src={item.image_url} className="w-full h-full object-cover" alt="" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+              <div className="absolute top-3 left-3 flex gap-1.5">
+                <span className="bg-red-500 text-white text-[9px] font-bold px-2.5 py-1 rounded-full">{item.category}</span>
+                <span className="bg-black/60 text-white text-[9px] px-2.5 py-1 rounded-full backdrop-blur">{item.time || "Today"}</span>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <h3 className="text-white text-[15px] font-bold leading-tight line-clamp-2">{item.title}</h3>
+                <p className="text-white/70 text-[11px] mt-1 line-clamp-1">{item.summary}</p>
+                <div className="mt-3 flex gap-2">
+                  <button onClick={() => setExpandedNews(item)} className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full active:scale-95">Read Summary</button>
+                  <a href={item.url} target="_blank" className="bg-white/20 backdrop-blur text-white border border-white/20 text-[11px] font-bold px-4 py-2 rounded-full flex items-center gap-1">Full on {item.source} ↗</a>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {news.map((_, idx) => (<button key={idx} onClick={() => setCurrent(idx)} className={`transition-all rounded-full ${idx === current ? "w-6 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/40"}`}></button>))}
+          </div>
+        </div>
+      </div>
+      <div className="px-5 mt-6 mb-2 flex items-center gap-3">
+        <div className="h-[1px] flex-1 bg-black/10 dark:bg-white/10"></div>
+        <span className="text-[10px] tracking-[0.3em] uppercase opacity-30 font-bold" style={{ color: isDark ? 'white' : 'black' }}>..................... Your Morning News .....................</span>
+        <div className="h-[1px] flex-1 bg-black/10 dark:bg-white/10"></div>
+      </div>
+      {expandedNews && (
+        <div onClick={() => setExpandedNews(null)} className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md grid place-items-center p-4">
+          <button onClick={() => setExpandedNews(null)} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/10 backdrop-blur text-white grid place-items-center">✕</button>
+          <div className="w-full max-w-md bg-white rounded-[20px] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="relative h-48 bg-black">
+              <img src={expandedNews.image_url} className="w-full h-full object-cover" alt="" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+              <div className="absolute bottom-3 left-4 right-4">
+                <span className="bg-red-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">{expandedNews.category}</span>
+                <h2 className="text-white text-[16px] font-bold mt-2 leading-tight">{expandedNews.title}</h2>
+              </div>
+            </div>
+            <div className="p-4">
+              <p className="text-[13px] text-black/70 leading-[1.5]">{expandedNews.summary} Complete story available on {expandedNews.source}.</p>
+              <div className="mt-4 grid gap-2">
+                <a href={expandedNews.url} target="_blank" className="w-full bg-black text-white rounded-full py-3 text-[13px] font-bold text-center">Read Full on {expandedNews.source} →</a>
+                <button onClick={() => setExpandedNews(null)} className="w-full bg-black/5 text-black rounded-full py-3 text-[13px] font-bold">Close & See Market ↓</button>
+              </div>
+              <p className="text-[10px] opacity-40 text-center mt-3">☕ Morning news done! Now check KSOM below 👇</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 
 export default function HomeV11() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -371,52 +490,6 @@ export default function HomeV11() {
     return () => document.removeEventListener('visibilitychange', handleVisible);
   }, [products]);
 
-  // 🔔 SMART ENGAGEMENT NUDGES - No server needed, no deployment fail!
-  useEffect(() => {
-    const checkNudges = () => {
-      try {
-        const now = new Date();
-        const day = now.getDay();
-        const date = now.getDate();
-        const hour = now.getHours();
-        const lastNudge = localStorage.getItem('ksm_last_nudge');
-        const lastNudgeTime = lastNudge ? parseInt(lastNudge) : 0;
-        const hoursSinceLastNudge = (Date.now() - lastNudgeTime) / (1000 * 60 * 60);
-        if (hoursSinceLastNudge < 36) return;
-        const isNudgeDay = [1, 3, 5, 0, 6].includes(day) || [1, 15].includes(date) || (day === 0 || day === 6) && hour >= 18;
-        const isPrimeTime = hour >= 8 && hour <= 21;
-        if (!isNudgeDay || !isPrimeTime) return;
-        const nudgeMessages = [
-          { title: "🔥 What's popping on KSOM?", message: "New items just dropped near you - tap to see!", image: "/ksom-icon.png" },
-          { title: "👀 Someone posted near Ayeduase", message: "Checkout what's going on KSOM right now", image: "/ksom-icon.png" },
-          { title: "💬 Your campus market is buzzing", message: "10+ new items today - don't miss out!", image: "/ksom-icon.png" },
-          { title: "🎉 Weekend deals live on KSOM", message: "Students are selling fast - open KSOM!", image: "/ksom-icon.png" },
-          { title: "📦 Fresh drop on KSOM!", message: "New phones, shoes & more - tap to explore", image: "/ksom-icon.png" },
-        ];
-        const lastMsgIdx = parseInt(localStorage.getItem('ksm_last_nudge_idx') || '-1');
-        let idx = Math.floor(Math.random() * nudgeMessages.length);
-        if (idx === lastMsgIdx) idx = (idx + 1) % nudgeMessages.length;
-        const chosen = nudgeMessages[idx];
-        const newNotif = { id: `nudge_${Date.now()}`, type: "nudge", title: chosen.title, message: chosen.message, created_at: new Date().toISOString(), read: false, image: chosen.image, isNudge: true };
-        const current = JSON.parse(localStorage.getItem("ksm_notifications") || "[]");
-        const hasRecentNudge = current.slice(0, 3).some((n: any) => n.isNudge);
-        if (hasRecentNudge) return;
-        const updated = [newNotif, ...current].slice(0, 20);
-        localStorage.setItem("ksm_notifications", JSON.stringify(updated));
-        localStorage.setItem('ksm_last_nudge', Date.now().toString());
-        localStorage.setItem('ksm_last_nudge_idx', idx.toString());
-        window.dispatchEvent(new Event('ksom-notif-update'));
-        if ('Notification' in window && Notification.permission === 'granted') {
-          try { new Notification(chosen.title, { body: chosen.message, icon: '/ksom-icon.png', badge: '/ksom-icon.png' }); } catch { }
-        }
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      } catch (e) { }
-    };
-    const initialTimeout = setTimeout(checkNudges, 10000);
-    const interval = setInterval(checkNudges, 4 * 60 * 60 * 1000);
-    return () => { clearTimeout(initialTimeout); clearInterval(interval); };
-  }, []);
-
 
   useEffect(() => {
     const len = adverts.length > 0 ? adverts.length : 3;
@@ -523,7 +596,9 @@ export default function HomeV11() {
         <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-[#0f172a] grid place-items-center text-[#d4af37] font-extrabold text-[11px]">P</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
       </div>
 
-      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
+      <MorningNews isDark={isDark} />
+
+      <div className="px-5 pt-5"><h1 className="text-[26px] font-[700] leading-[0.95]">Students&apos; online<br />market</h1><div className="mt-3 flex items-center justify-between gap-3"><div className={`inline-flex rounded-full px-3 py-1.5 text-[10px] border shrink ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div><a href={WHATSAPP_COMMUNITY_LINK} target="_blank" className="shrink-0 bg-[#0d9488] text-white text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1 active:scale-95 transition-transform">Join →</a></div></div>
 
       <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{search}&quot; — {filtered.length} found</p>}</div>
 
@@ -618,11 +693,6 @@ export default function HomeV11() {
 
       <div className="mt-8 px-5"><div className="rounded-[18px] p-4 border flex justify-between items-center" style={{ background: "#0d9488", borderColor: "#0d9488" }}><div><p className="text-white text-[12px] font-bold">Want to advertise?</p><p className="text-white/80 text-[10px]">Let me run your ads for you</p></div><a href="/advertise" className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full">Contact Me →</a></div></div>
 
-      <div className="mt-6 text-center pb-6">
-        <p className="text-[12px] tracking-[0.4em] opacity-60 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
-        <p className="text-[8px] tracking-[0.2em] opacity-50 mt-1 uppercase">Built for 🫵🏾</p>
-      </div>
-
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
         <div className={`flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] ${isDark ? "bg-[#1e1e1e]/90 border-white/10" : "bg-white/90 border-black/10"}`}>
           <a href="/" className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>
@@ -684,12 +754,13 @@ export default function HomeV11() {
         </div>
       )}
 
-      <style>{`
-        .cats-smooth-v2{scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scroll-padding:0 50%}.cats-smooth-v2::-webkit-scrollbar{display:none}.cats-smooth-v2 button{transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important}
-        @keyframes notifPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
-        @keyframes bellRing{0%,100%{transform:rotate(0)}15%{transform:rotate(15deg)}30%{transform:rotate(-15deg)}45%{transform:rotate(10deg)}60%{transform:rotate(-10deg)}75%{transform:rotate(5deg)}}
-        @keyframes badgePop{0%{transform:scale(0)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
-      `}</style>
+
+      <div className="mt-10 text-center pb-8">
+        <p className="text-[12px] tracking-[0.4em] opacity-30 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
+        <p className="text-[10px] tracking-[0.2em] opacity-40 mt-1 uppercase flex items-center justify-center gap-1">Built for 🫵</p>
+      </div>
+
+      <style>{`.cats-smooth-v2{scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scroll-padding:0 50%}.cats-smooth-v2::-webkit-scrollbar{display:none}.cats-smooth-v2 button{transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important}`}</style>
     </div>
   );
 }

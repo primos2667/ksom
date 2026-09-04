@@ -1,0 +1,8 @@
+{
+  "cron": [
+    {
+      "path": "/apii/morning-push?secret=primos7662@gmail.com",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
