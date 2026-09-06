@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Prima KSOM - KNUST Students Online Market",
     description: "Buy & Sell on KNUST campus. Verified students, WhatsApp chat.",
-    url: "https://ksom.vercel.app",
+    url: "https://ksom-omega.vercel.app",
     siteName: "Prima KSOM",
     images: [{ url: "/ksom-icon-512.png", width: 512, height: 512 }],
     type: "website",

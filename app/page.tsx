@@ -225,7 +225,7 @@ function MorningNews({ isDark }: { isDark: boolean }) {
       </div>
       <div className="px-5 mt-6 mb-2 flex items-center gap-3">
         <div className="h-[1px] flex-1 bg-black/10 dark:bg-white/10"></div>
-        <span className="text-[10px] tracking-[0.3em] uppercase opacity-30 font-bold" style={{ color: isDark ? 'white' : 'black' }}> Your Morning News </span>
+        <span className="text-[10px] tracking-[0.3em] uppercase opacity-30 font-bold" style={{ color: isDark ? 'white' : 'black' }}>..................... Your Morning News .....................</span>
         <div className="h-[1px] flex-1 bg-black/10 dark:bg-white/10"></div>
       </div>
       {expandedNews && (
@@ -274,6 +274,7 @@ export default function HomeV11() {
   const [adverts, setAdverts] = useState<any[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState(""); // Holds actual search term after Enter
   const [expandedAd, setExpandedAd] = useState<any>(null);
   const [expandedProduct, setExpandedProduct] = useState<any>(null);
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
@@ -536,7 +537,12 @@ export default function HomeV11() {
     setExpandedProduct(p);
   };
 
-  const executeSearch = () => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); setTimeout(() => { latestRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 150); };
+  const executeSearch = () => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    setSearchQuery(search); // Save search term for filtering
+    setSearch(""); // Clear input text like other apps - text disappears!
+    setTimeout(() => { latestRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 150);
+  };
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === "Enter") executeSearch(); };
   const handleCategoryClick = (e: React.MouseEvent<HTMLButtonElement>, cat: string) => { setActive(cat); e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); };
 
@@ -546,7 +552,9 @@ export default function HomeV11() {
   const displayAds = adverts.length > 0 ? adverts.map((a: any) => ({ img: a.image_url || defaultAds[0], title: a.business_name, desc: a.description, wa: a.whatsapp, isPaid: true, full: a })) : defaultAds.map((img, idx) => ({ img, title: ["KSOM Marketplace", "Advertise With Us", "KNUST Students"][idx], desc: ["Buy & Sell on campus", "Reach 10k+ students GH₵20/week", "Verified sellers only"][idx], wa: "", isPaid: false, full: { image_url: img, business_name: ["KSOM Marketplace", "Advertise With Us", "KNUST Students"][idx], description: ["Buy & Sell on campus", "Reach 10k+ students", "Verified sellers only"][idx], whatsapp: "" } }));
   const verifiedSellers = new Set(collections.map(c => c.seller_name.toLowerCase()));
   let filtered = active === "All" ? products : products.filter(p => p.category === active || p.category?.toLowerCase().includes(active.toLowerCase()));
-  if (search) filtered = filtered.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
+  // Use searchQuery after Enter (text disappeared) or live search while typing
+  const activeSearch = searchQuery || search;
+  if (activeSearch) filtered = filtered.filter(p => p.title.toLowerCase().includes(activeSearch.toLowerCase()));
 
   // ✅ FIX: Deduplicate first, then fair shuffle - prevents double images
   const dedupedProducts = Array.from(new Map(filtered.map((p: any) => [p.id, p])).values());
@@ -598,7 +606,7 @@ export default function HomeV11() {
 
       <MorningNews isDark={isDark} />
 
-      <div className="px-5 pt-8 pb-3 text-center">
+      <div className="px-5 pt-8 pb-10 text-center">
         <h1 className="text-[30px] font-[800] leading-[0.9] tracking-tight mx-auto">Students&apos; online<br />market</h1>
         <div className="mt-6 flex flex-col items-center gap-3 justify-center">
           <div className={`inline-flex rounded-full px-4 py-2 text-[11px] border ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-black/5 border-black/10 text-black/60"}`}>Verified students · Chat on WhatsApp · No payment yet</div>
@@ -606,7 +614,7 @@ export default function HomeV11() {
         </div>
       </div>
 
-      <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{search && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{search}&quot; — {filtered.length} found</p>}</div>
+      <div className="px-5 mt-5"><div className={`flex items-center rounded-full px-5 py-3.5 border ${isDark ? "bg-[#1c1c1c] border-white/10" : "bg-white border-black/10"}`}><input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown} enterKeyHint="search" placeholder="Search on KSOM" className={`bg-transparent outline-none text-[13px] flex-1 ${isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-black/30"}`} /><button onClick={executeSearch} className={`w-7 h-7 rounded-full grid place-items-center text-[11px] active:scale-90 transition-transform ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>⌕</button></div>{activeSearch && <p className="text-[10px] mt-2 opacity-50">Searching for &quot;{activeSearch}&quot; — {filtered.length} found {searchQuery && <button onClick={() => { setSearchQuery(""); setSearch(""); }} className="ml-2 underline">Clear ✕</button>}</p>}</div>
 
       <div className="mt-5 px-5 flex gap-2 overflow-x-auto scrollbar-none cats-smooth-v2">{cats.map(c => <button key={c} onClick={(e) => handleCategoryClick(e, c)} className={`shrink-0 rounded-full px-4 py-2 text-[11px] border transition-all duration-300 ${active === c ? (isDark ? "bg-white text-black border-white" : "bg-black text-white border-black") : (isDark ? "bg-transparent text-white/50 border-white/10" : "bg-white text-black/60 border-black/10")}`}>{c}</button>)}</div>
 
@@ -699,7 +707,7 @@ export default function HomeV11() {
 
       <div className="mt-8 px-5"><div className="rounded-[18px] p-4 border flex justify-between items-center" style={{ background: "#0d9488", borderColor: "#0d9488" }}><div><p className="text-white text-[12px] font-bold">Want to advertise?</p><p className="text-white/80 text-[10px]">Let me run your ads for you</p></div><a href="/advertise" className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full">Contact Me →</a></div></div>
 
-      <div className="mt-6 text-center pb-6">
+      <div className="mt-6 text-center pb-0">
         <p className="text-[12px] tracking-[0.4em] opacity-60 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
         <p className="text-[8px] tracking-[0.2em] opacity-50 mt-1 uppercase">Built for 🫵🏾</p>
       </div>
