@@ -143,7 +143,7 @@ export default function NewsAdminPage() {
             <a href="/" className="text-[10px] px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black">Home</a>
           </div>
           <div className="p-3 rounded-[12px] bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 mb-4">
-            <p className="text-[11px] text-green-700 dark:text-green-300">🔑 <span className="font-bold">Simple Login:</span> Use email & password from .env.local - No Supabase account needed!</p>
+            <p className="text-[11px] text-green-700 dark:text-green-300">🔑 <span className="font-bold">Simple Login:</span> Use email & password</p>
             <p className="text-[10px] mt-1 opacity-70">Email: {NEWS_ADMIN_EMAIL}</p>
             <p className="text-[10px] opacity-70">Password: {NEWS_ADMIN_PASSWORD.replace(/./g, "*")} (hidden)</p>
           </div>
@@ -156,13 +156,6 @@ export default function NewsAdminPage() {
           <button onClick={handleLogin} className="w-full mt-4 bg-red-500 text-white py-3.5 rounded-full text-[13px] font-bold">
             Login as News Admin →
           </button>
-
-          <div className="mt-4 p-3 rounded-[12px] bg-black/5 dark:bg-white/5">
-            <p className="text-[10px] font-bold dark:text-white">📋 Setup:</p>
-            <p className="text-[9px] opacity-60 mt-1 dark:text-white/60">1. In .env.local add:<br />NEXT_PUBLIC_NEWS_ADMIN_EMAIL=newsadmin@gmail.com<br />NEXT_PUBLIC_NEWS_ADMIN_PASSWORD=primanews123</p>
-            <p className="text-[9px] opacity-60 mt-2 dark:text-white/60">2. In Vercel → Settings → Environment Variables → Add same 2 vars</p>
-            <p className="text-[9px] opacity-60 mt-2 dark:text-white/60">3. Redeploy - then login with those!</p>
-          </div>
         </div>
       </div>
     );
