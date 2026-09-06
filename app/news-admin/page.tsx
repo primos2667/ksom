@@ -10,64 +10,29 @@ export default function NewsAdminPage() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPass, setLoginPass] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [loginLoading, setLoginLoading] = useState(false);
   const [form, setForm] = useState({ title: "", summary: "", source: "BBC", url: "", category: "Tech", image_url: "" });
   const [uploading, setUploading] = useState(false);
 
-  // 🔒 Separate login for news uploader - use different env var!
-  // Set in .env.local: NEXT_PUBLIC_NEWS_ADMIN_EMAIL = friend@gmail.com
-  // If not set, defaults to news admin email
-  const NEWS_ADMIN_EMAIL = process.env.NEXT_PUBLIC_NEWS_ADMIN_EMAIL || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "primos7662@gmail.com";
+  // 🔒 SIMPLE NEWS ADMIN - No Supabase Auth needed!
+  // Set in .env.local:
+  // NEXT_PUBLIC_NEWS_ADMIN_EMAIL=newsadmin@gmail.com
+  // NEXT_PUBLIC_NEWS_ADMIN_PASSWORD=primanews123
+  // Then just enter those on login page - no need to create user in Supabase!
+  const NEWS_ADMIN_EMAIL = process.env.NEXT_PUBLIC_NEWS_ADMIN_EMAIL || "newsadmin@gmail.com";
+  const NEWS_ADMIN_PASSWORD = process.env.NEXT_PUBLIC_NEWS_ADMIN_PASSWORD || "primanews123";
+  const MAIN_ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "primos7662@gmail.com";
 
   useEffect(() => {
     setLoginEmail(NEWS_ADMIN_EMAIL);
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setIsLoggedIn(false);
-      setLoading(false);
-      return;
-    }
-    // Allow main admin OR news admin
-    const mainAdmin = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "primos7662@gmail.com";
-    const allowed = [NEWS_ADMIN_EMAIL.toLowerCase(), mainAdmin.toLowerCase()];
-    if (!allowed.includes(user.email?.toLowerCase() || "")) {
-      setLoginError(`Access denied! Only news admin can access. You are ${user.email}. Allowed: ${allowed.join(", ")}`);
-      setIsLoggedIn(false);
-      setLoading(false);
-      return;
-    }
-    setIsLoggedIn(true);
-    loadNews();
-  };
-
-  const handleLogin = async () => {
-    setLoginLoading(true);
-    setLoginError("");
-    const supabase = createClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
-      password: loginPass,
-    });
-    setLoginLoading(false);
-    if (error) {
-      setLoginError(error.message);
+    // Check if already logged in via localStorage
+    const savedLogin = localStorage.getItem("ksom-news-admin-logged");
+    if (savedLogin === "true") {
+      setIsLoggedIn(true);
+      loadNews();
     } else {
-      const mainAdmin = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "primos7662@gmail.com";
-      const allowed = [NEWS_ADMIN_EMAIL.toLowerCase(), mainAdmin.toLowerCase()];
-      if (!allowed.includes(data.user?.email?.toLowerCase() || "")) {
-        setLoginError(`Not authorized! Only ${allowed.join(", ")} allowed. You are ${data.user?.email}`);
-        await supabase.auth.signOut();
-      } else {
-        setIsLoggedIn(true);
-        loadNews();
-      }
+      setLoading(false);
     }
-  };
+  }, []);
 
   const loadNews = async () => {
     const supabase = createClient();
@@ -77,13 +42,47 @@ export default function NewsAdminPage() {
     setLoading(false);
   };
 
+  const handleLogin = async () => {
+    setLoginError("");
+    // Simple check - no Supabase Auth!
+    const emailOk = loginEmail.toLowerCase().trim() === NEWS_ADMIN_EMAIL.toLowerCase().trim() || loginEmail.toLowerCase().trim() === MAIN_ADMIN_EMAIL.toLowerCase().trim();
+    const passOk = loginPass === NEWS_ADMIN_PASSWORD;
+
+    // Also allow main admin to login with his Supabase password as fallback
+    if (emailOk && passOk) {
+      setIsLoggedIn(true);
+      localStorage.setItem("ksom-news-admin-logged", "true");
+      localStorage.setItem("ksom-news-admin-email", loginEmail);
+      loadNews();
+    } else {
+      // Try Supabase Auth as fallback for main admin
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password: loginPass,
+        });
+        if (!error && data.user) {
+          const allowed = [NEWS_ADMIN_EMAIL.toLowerCase(), MAIN_ADMIN_EMAIL.toLowerCase()];
+          if (allowed.includes(data.user.email?.toLowerCase() || "")) {
+            setIsLoggedIn(true);
+            localStorage.setItem("ksom-news-admin-logged", "true");
+            loadNews();
+            return;
+          }
+        }
+      } catch { }
+
+      setLoginError(`Wrong email or password! Use: ${NEWS_ADMIN_EMAIL} / ${NEWS_ADMIN_PASSWORD}. You entered: ${loginEmail}`);
+    }
+  };
+
   const handleUpload = async (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
     try {
       const supabase = createClient();
-      // 🔥 Auto compress like sell page - 5MB → ~150KB for fast site!
       const compressedFile = await compressImage(file, 800, 0.7);
       const fileName = "news-" + Date.now() + "-" + compressedFile.name.replace(/[^a-zA-Z0-9.-]/g, "");
       const { error } = await supabase.storage.from("product-images").upload(fileName, compressedFile);
@@ -126,12 +125,13 @@ export default function NewsAdminPage() {
   };
 
   const handleLogout = async () => {
+    localStorage.removeItem("ksom-news-admin-logged");
     const supabase = createClient();
-    await supabase.auth.signOut();
+    await supabase.auth.signOut().catch(() => { });
     setIsLoggedIn(false);
   };
 
-  if (!isLoggedIn && !loading) {
+  if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#fbfaf8] dark:bg-[#0f0f0f] grid place-items-center p-5">
         <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-[24px] p-6 border shadow-xl">
@@ -142,18 +142,27 @@ export default function NewsAdminPage() {
             </div>
             <a href="/" className="text-[10px] px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black">Home</a>
           </div>
-          <p className="text-[11px] opacity-60 mb-4 dark:text-white/60">🔒 News uploader only - no access to products/adverts</p>
+          <div className="p-3 rounded-[12px] bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 mb-4">
+            <p className="text-[11px] text-green-700 dark:text-green-300">🔑 <span className="font-bold">Simple Login:</span> Use email & password from .env.local - No Supabase account needed!</p>
+            <p className="text-[10px] mt-1 opacity-70">Email: {NEWS_ADMIN_EMAIL}</p>
+            <p className="text-[10px] opacity-70">Password: {NEWS_ADMIN_PASSWORD.replace(/./g, "*")} (hidden)</p>
+          </div>
 
           <input value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="News admin email" className="w-full px-4 py-3 rounded-full bg-[#f3f3f5] dark:bg-zinc-800 text-[13px] outline-none dark:text-white mb-3" />
-          <input value={loginPass} onChange={e => setLoginPass(e.target.value)} type="password" placeholder="Password" className="w-full px-4 py-3 rounded-full bg-[#f3f3f5] dark:bg-zinc-800 text-[13px] outline-none dark:text-white" />
+          <input value={loginPass} onChange={e => setLoginPass(e.target.value)} type="password" placeholder="Password" className="w-full px-4 py-3 rounded-full bg-[#f3f3f5] dark:bg-zinc-800 text-[13px] outline-none dark:text-white" onKeyDown={e => e.key === "Enter" && handleLogin()} />
 
           {loginError && <p className="text-[11px] mt-3 p-2.5 rounded-[12px] bg-red-500 text-white text-center">{loginError}</p>}
 
-          <button onClick={handleLogin} disabled={loginLoading} className="w-full mt-4 bg-red-500 text-white py-3.5 rounded-full text-[13px] font-bold">
-            {loginLoading ? "Logging in..." : "Login as News Admin →"}
+          <button onClick={handleLogin} className="w-full mt-4 bg-red-500 text-white py-3.5 rounded-full text-[13px] font-bold">
+            Login as News Admin →
           </button>
 
-          <p className="text-[10px] opacity-40 mt-4 text-center">Set NEXT_PUBLIC_NEWS_ADMIN_EMAIL in .env.local to give access to your friend without giving main admin!</p>
+          <div className="mt-4 p-3 rounded-[12px] bg-black/5 dark:bg-white/5">
+            <p className="text-[10px] font-bold dark:text-white">📋 Setup:</p>
+            <p className="text-[9px] opacity-60 mt-1 dark:text-white/60">1. In .env.local add:<br />NEXT_PUBLIC_NEWS_ADMIN_EMAIL=newsadmin@gmail.com<br />NEXT_PUBLIC_NEWS_ADMIN_PASSWORD=primanews123</p>
+            <p className="text-[9px] opacity-60 mt-2 dark:text-white/60">2. In Vercel → Settings → Environment Variables → Add same 2 vars</p>
+            <p className="text-[9px] opacity-60 mt-2 dark:text-white/60">3. Redeploy - then login with those!</p>
+          </div>
         </div>
       </div>
     );
@@ -166,7 +175,7 @@ export default function NewsAdminPage() {
       <div className="flex justify-between items-center max-w-2xl mx-auto">
         <div>
           <h1 className="text-xl font-bold dark:text-white">☀️ Morning News Uploader</h1>
-          <p className="text-xs opacity-60 mt-1 dark:text-white/60">Only news - no products/adverts access • {news.length} news</p>
+          <p className="text-xs opacity-60 mt-1 dark:text-white/60">Only news - no products/adverts access • {news.length} news • Logged as {loginEmail}</p>
         </div>
         <div className="flex gap-2">
           <button onClick={handleLogout} className="text-xs px-4 py-2 rounded-full bg-red-500 text-white">Logout</button>
@@ -193,7 +202,6 @@ export default function NewsAdminPage() {
           </div>
           <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="Full article URL https://bbc.com/..." className="w-full rounded-full px-4 py-2.5 border text-sm" />
           <button onClick={submit} className="w-full bg-red-500 text-white rounded-full py-3 text-sm font-bold">☀️ Post Morning News</button>
-          <p className="text-[10px] opacity-40 text-center">Genre tip: Tech/Sports/Scholarship = highest open rate for KNUST students!</p>
         </div>
       </div>
 
@@ -212,10 +220,6 @@ export default function NewsAdminPage() {
           </div>
         </div>)}
         {news.length === 0 && <p className="text-[12px] opacity-40 text-center py-10">No news yet. Upload 3 above!</p>}
-      </div>
-
-      <div className="max-w-2xl mx-auto mt-10 text-center pb-6">
-        <p className="text-[10px] opacity-30">News uploader • No access to main admin • Built for KSOM</p>
       </div>
     </div>
   );
