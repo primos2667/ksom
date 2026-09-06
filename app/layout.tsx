@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { InstallPWA } from "@/components/InstallPWA";
 
+
 export const metadata: Metadata = {
   title: "Prima KSOM - KNUST Students Online Market | Buy & Sell on Campus",
   description: "Prima KSOM - KNUST Students Online Market. Buy & Sell phones, laptops, shoes, fashion, books & more on KNUST campus. Verified students, WhatsApp chat, no payment yet. Join 10k+ students!",
@@ -86,3 +87,10 @@ export default function RootLayout({
     </html>
   );
 }
+
+
+
+
+
+
+

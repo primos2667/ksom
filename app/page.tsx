@@ -707,12 +707,6 @@ export default function HomeV11() {
 
       <div className="mt-8 px-5"><div className="rounded-[18px] p-4 border flex justify-between items-center" style={{ background: "#0d9488", borderColor: "#0d9488" }}><div><p className="text-white text-[12px] font-bold">Want to advertise?</p><p className="text-white/80 text-[10px]">Let me run your ads for you</p></div><a href="/advertise" className="bg-white text-black text-[11px] font-bold px-4 py-2 rounded-full">Contact Me →</a></div></div>
 
-      <div className="mt-6 text-center pb-0">
-        <p className="text-[12px] tracking-[0.4em] opacity-60 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
-        <p className="text-[8px] tracking-[0.2em] opacity-50 mt-1 uppercase">Built for 🫵🏾</p>
-      </div>
-
-
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
         <div className={`flex items-center gap-1 rounded-full p-1.5 backdrop-blur-[28px] border shadow-[0_12px_32px_rgba(0,0,0,0.15)] ${isDark ? "bg-[#1e1e1e]/90 border-white/10" : "bg-white/90 border-black/10"}`}>
           <a href="/" className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-medium shadow-sm ${isDark ? "bg-white text-black" : "bg-black text-white"}`}>
@@ -774,7 +768,14 @@ export default function HomeV11() {
         </div>
       )}
 
+
+      <div className="mt-6 text-center pb-6">
+        <p className="text-[12px] tracking-[0.4em] opacity-60 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
+        <p className="text-[8px] tracking-[0.2em] opacity-50 mt-1 uppercase">Built for 🫵🏾</p>
+      </div>
+
       <style>{`.cats-smooth-v2{scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scroll-padding:0 50%}.cats-smooth-v2::-webkit-scrollbar{display:none}.cats-smooth-v2 button{transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important}`}</style>
+
     </div>
   );
 }
