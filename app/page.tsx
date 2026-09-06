@@ -225,7 +225,7 @@ function MorningNews({ isDark }: { isDark: boolean }) {
       </div>
       <div className="px-5 mt-6 mb-2 flex items-center gap-3">
         <div className="h-[1px] flex-1 bg-black/10 dark:bg-white/10"></div>
-        <span className="text-[10px] tracking-[0.3em] uppercase opacity-30 font-bold" style={{ color: isDark ? 'white' : 'black' }}>..................... Your Morning News .....................</span>
+        <span className="text-[10px] tracking-[0.3em] uppercase opacity-30 font-bold" style={{ color: isDark ? 'white' : 'black' }}> Your Morning News </span>
         <div className="h-[1px] flex-1 bg-black/10 dark:bg-white/10"></div>
       </div>
       {expandedNews && (
