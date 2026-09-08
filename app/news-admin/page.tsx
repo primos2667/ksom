@@ -73,7 +73,7 @@ export default function NewsAdminPage() {
         }
       } catch { }
 
-      setLoginError(`Wrong email or password! Use: ${NEWS_ADMIN_EMAIL} / ${NEWS_ADMIN_PASSWORD}. You entered: ${loginEmail}`);
+      setLoginError(`Wrong email or password!`);
     }
   };
 
@@ -178,7 +178,7 @@ export default function NewsAdminPage() {
 
       <div className="max-w-2xl mx-auto mt-6 p-4 rounded-[18px] bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/10">
         <h3 className="text-sm font-bold dark:text-white">☀️ Upload Morning News</h3>
-        <p className="text-[11px] opacity-60 mt-1 dark:text-white/60">3 news daily, 210px height. Auto compresses to KB for fast site!</p>
+        <p className="text-[11px] opacity-60 mt-1 dark:text-white/60">3 news daily</p>
 
         <div className="mt-4 grid gap-3">
           <div className="rounded-[12px] border border-dashed p-3 text-center">
