@@ -85,7 +85,7 @@ export default function SellerPage() {
       <div className="sticky top-0 z-20 bg-[#fbfaf8]/90 dark:bg-[#0f0f0f]/90 backdrop-blur border-b border-black/5 dark:border-white/10 px-5 py-3 flex justify-between items-center">
         <a href="/" className="text-xs px-3 py-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black">← Home</a>
         <span className="text-[11px] tracking-[0.2em] uppercase opacity-60 dark:text-white flex items-center gap-1.5">
-          {isOwner && <span className="bg-[#0d9488] text-white px-2 py-0.5 rounded-full text-[9px]">👑 YOUR SHOP</span>}
+          {isOwner && <span className="bg-[#0d9488] text-white px-2 py-0.5 rounded-full text-[9px]">👑</span>}
           {sellerName}
         </span>
         <a href="/collections" className="text-[11px] px-3 py-1.5 rounded-full bg-[#0d9488] text-white">Book Spot</a>

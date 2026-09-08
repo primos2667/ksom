@@ -216,6 +216,28 @@ export default function AdminPage() {
     if (!error) setCollections(prev => prev.filter(c => c.id !== id));
   };
 
+  const approveCollection = async (id: string) => {
+    if (!confirm("✅ Approve this collection? It will show on homepage!")) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("collections").update({ status: "approved" }).eq("id", id);
+    if (error) alert(error.message);
+    else {
+      alert("✅ Collection approved! Will show on homepage featured collections!");
+      setCollections(prev => prev.map(c => c.id === id ? { ...c, status: "approved" } : c));
+    }
+  };
+
+  const approveAdvert = async (id: string) => {
+    if (!confirm("✅ Approve this advert? It will show in homepage ads!")) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("adverts").update({ status: "approved" }).eq("id", id);
+    if (error) alert(error.message);
+    else {
+      alert("✅ Advert approved! Will show in homepage ad slider!");
+      setAdverts(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
+    }
+  };
+
   const deleteNews = async (id: string) => {
     if (!confirm("Delete this morning news?")) return;
     const supabase = createClient();
@@ -324,16 +346,32 @@ export default function AdminPage() {
         {tab === "collections" && collections.map((c: any) => <div key={c.id} className="p-3 rounded-[18px] bg-white dark:bg-zinc-900 border flex gap-3">
           <img src={c.image_url} className="w-20 h-20 rounded-[12px] object-cover" />
           <div className="flex-1">
-            <p className="text-[13px] font-bold dark:text-white">{c.seller_name}</p>
-            <button onClick={() => deleteCollection(c.id)} className="mt-2 text-[10px] px-3 py-1 rounded-full bg-red-500 text-white">Delete</button>
+            <div className="flex gap-2 items-center">
+              <p className="text-[13px] font-bold dark:text-white">{c.seller_name}</p>
+              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${c.status === "approved" ? "bg-green-500 text-white" : "bg-yellow-400 text-black"}`}>{c.status || "pending"}</span>
+            </div>
+            <p className="text-[11px] opacity-60 dark:text-white/60 mt-1 line-clamp-2">{c.description} • {c.whatsapp}</p>
+            <div className="flex gap-2 mt-2">
+              {c.status !== "approved" && <button onClick={() => approveCollection(c.id)} className="text-[10px] px-4 py-1.5 rounded-full bg-green-600 text-white font-bold">✅ Approve</button>}
+              <button onClick={() => deleteCollection(c.id)} className="text-[10px] px-3 py-1 rounded-full bg-red-500 text-white">🗑️ Delete</button>
+              <a href={`https://wa.me/${String(c.whatsapp).replace(/[^0-9]/g, '')}`} target="_blank" className="text-[10px] px-3 py-1 rounded-full bg-[#25D366] text-white">WA</a>
+            </div>
           </div>
         </div>)}
 
         {tab === "adverts" && adverts.map((a: any) => <div key={a.id} className="p-3 rounded-[18px] bg-white dark:bg-zinc-900 border flex gap-3">
           <img src={a.image_url} className="w-20 h-20 rounded-[12px] object-cover" />
           <div className="flex-1">
-            <p className="text-[13px] font-bold dark:text-white">{a.business_name}</p>
-            <button onClick={() => deleteAdvert(a.id)} className="mt-2 text-[10px] px-3 py-1 rounded-full bg-red-500 text-white">Delete</button>
+            <div className="flex gap-2 items-center">
+              <p className="text-[13px] font-bold dark:text-white">{a.business_name}</p>
+              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${a.status === "approved" ? "bg-green-500 text-white" : "bg-yellow-400 text-black"}`}>{a.status || "pending"}</span>
+            </div>
+            <p className="text-[11px] opacity-60 dark:text-white/60 mt-1 line-clamp-2">{a.description} • {a.whatsapp}</p>
+            <div className="flex gap-2 mt-2">
+              {a.status !== "approved" && <button onClick={() => approveAdvert(a.id)} className="text-[10px] px-4 py-1.5 rounded-full bg-green-600 text-white font-bold">✅ Approve</button>}
+              <button onClick={() => deleteAdvert(a.id)} className="text-[10px] px-3 py-1 rounded-full bg-red-500 text-white">🗑️ Delete</button>
+              <a href={`https://wa.me/${String(a.whatsapp).replace(/[^0-9]/g, '')}`} target="_blank" className="text-[10px] px-3 py-1 rounded-full bg-[#25D366] text-white">WA</a>
+            </div>
           </div>
         </div>)}
 

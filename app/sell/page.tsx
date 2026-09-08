@@ -18,7 +18,7 @@ export default function SellPage() {
   const [storageStatus, setStorageStatus] = useState<{ blocked: boolean; count: number; max: number; percent: number; nextClean: string; daysToClean: number } | null>(null);
   const [checkingStorage, setCheckingStorage] = useState<boolean>(true);
   const [sellerCount, setSellerCount] = useState<number>(0);
-  const MAX_PER_SELLER = 30;
+  const MAX_PER_SELLER = 10;
 
   useEffect(() => {
     const seller = localStorage.getItem("ksm_is_seller");
@@ -224,7 +224,7 @@ export default function SellPage() {
   };
 
   const handleShareWhatsApp = () => {
-    const waMessage = `🚀 NEW ON KSOM!\n\n📦 ${form.title}\n💰 ${form.price}\n📍 ${form.location}\n${form.seller_name ? `🏪 ${form.seller_name}\n` : ""}Check: https://ksom.vercel.app`;
+    const waMessage = `🚀 NEW ON KSOM!\n\n📦 ${form.title}\n💰 ${form.price}\n📍 ${form.location}\n${form.seller_name ? `🏪 ${form.seller_name}\n` : ""}Check: https://ksom-omega.vercel.app`;
     window.open(`https://wa.me/?text=${encodeURIComponent(waMessage)}`, "_blank");
     setShowSuccess(false);
     setForm({ title: "", price: "", category: "Phones", location: "", whatsapp: "", seller_name: form.seller_name });
@@ -325,7 +325,7 @@ export default function SellPage() {
             <input value={form.whatsapp} onChange={e => { setForm({ ...form, whatsapp: e.target.value }); if (e.target.value.length >= 9) checkSellerCount(e.target.value); }} onBlur={e => checkSellerCount(e.target.value)} placeholder="WhatsApp e.g. 233540000001" className="w-full rounded-full px-4 py-3 border border-black/10 dark:border-white/10 text-sm outline-none bg-white dark:bg-zinc-900 dark:text-white transition-colors" />
             {form.whatsapp.length >= 9 && (
               <p className={`text-[10px] mt-1.5 px-2 ${sellerCount >= 30 ? "text-red-500 font-bold" : sellerCount >= 20 ? "text-yellow-600" : "text-green-600"}`}>
-                📦 You have {sellerCount}/{MAX_PER_SELLER} products {sellerCount >= 30 ? "— MAX REACHED!" : sellerCount >= 25 ? "— Almost full!" : ""}
+                📦 You have {sellerCount}/{MAX_PER_SELLER} products {sellerCount >= 10 ? "— MAX REACHED!" : sellerCount >= 8 ? "— Almost full!" : ""}
               </p>
             )}
           </div>
