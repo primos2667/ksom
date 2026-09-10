@@ -72,7 +72,7 @@ export default function AdvertisePage() {
         <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="What do you sell?" className="w-full rounded-[18px] px-4 py-3 border border-black/10 bg-white text-sm outline-none h-20" />
         <input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="WhatsApp 2335..." className="w-full rounded-full px-4 py-3 border border-black/10 bg-white text-sm outline-none" />
         <select value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} className="w-full rounded-full px-4 py-3 border border-black/10 bg-white text-sm outline-none">
-          <option>1 week - GH₵ 20</option><option>2 weeks - GH₵ 35</option><option>1 month - GH₵ 60</option>
+          <option>1 day - GH₵ 20</option><option>3 days - GH₵ 50</option><option>1 week - GH₵ 90</option>
         </select>
 
         {/* INSTAGRAM STYLE UPLOAD PREVIEW - NO CUT, NO STRETCH */}

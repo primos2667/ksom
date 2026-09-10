@@ -246,7 +246,7 @@ function MorningNews({ isDark }: { isDark: boolean }) {
                 <a href={expandedNews.url} target="_blank" className="w-full bg-black text-white rounded-full py-3 text-[13px] font-bold text-center">Read Full on {expandedNews.source} →</a>
                 <button onClick={() => setExpandedNews(null)} className="w-full bg-black/5 text-black rounded-full py-3 text-[13px] font-bold">Close & See Market ↓</button>
               </div>
-              <p className="text-[10px] opacity-40 text-center mt-3">☕ Morning news done! Now check KSOM below 👇</p>
+              <p className="text-[10px] opacity-40 text-center mt-3">☕ Morning news done! Check KSOM below 👇</p>
             </div>
           </div>
         </div>
@@ -601,7 +601,7 @@ export default function HomeV11() {
   return (
     <div className={`${isDark ? "bg-[#0f0f0f] text-[#f5f3ef]" : "bg-[#fbfaf8] text-[#121212]"} min-h-screen pb-28 transition-colors`}>
       <div className={`sticky top-0 z-20 backdrop-blur-xl border-b ${isDark ? "bg-[#0f0f0f]/90 border-white/10" : "bg-[#fbfaf8]/90 border-black/10"}`}>
-        <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-[#0f172a] grid place-items-center text-[#d4af37] font-extrabold text-[11px]">P</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">KSOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
+        <div className="px-5 h-14 flex justify-between items-center"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-[#0f172a] grid place-items-center text-[#d4af37] font-extrabold text-[11px]">P</div><span className="text-[11px] tracking-[0.2em] uppercase font-medium">SOM — KNUST</span></div><div className="flex items-center gap-2.5"><span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: "#0d9488" }}>Prima</span><a href="/login" className={`text-[11px] px-3.5 py-1.5 rounded-full border font-medium ${isDark ? "bg-white text-black border-white" : "bg-black text-white border-black"}`}>Log in</a></div></div>
       </div>
 
       <MorningNews isDark={isDark} />
@@ -749,7 +749,7 @@ export default function HomeV11() {
               <div className="flex justify-between items-start gap-3">
                 <div className="flex-1">
                   <h2 className="text-[16px] font-bold leading-tight text-black">{expandedProduct.title}</h2>
-                  <p className="text-[12px] text-black/50 mt-1 flex items-center gap-1">📍 {expandedProduct.location} • 🏪 {expandedProduct.seller_name} {verifiedSellers.has((expandedProduct.seller_name || "").toLowerCase()) && <span className="text-[#0d9488]">✓</span>}</p>
+                  <p className="text-[12px] text-black/50 mt-1 flex items-center gap-1"> {expandedProduct.location} • 🏪 {expandedProduct.seller_name} {verifiedSellers.has((expandedProduct.seller_name || "").toLowerCase()) && <span className="text-[#0d9488]">✓</span>}</p>
                 </div>
                 <p className="text-[18px] font-bold text-black shrink-0">{expandedProduct.price}</p>
               </div>
@@ -770,7 +770,7 @@ export default function HomeV11() {
 
 
       <div className="mt-6 text-center pb-6">
-        <p className="text-[12px] tracking-[0.4em] opacity-60 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Primos~</p>
+        <p className="text-[12px] tracking-[0.4em] opacity-60 font-light italic select-none" style={{ fontFamily: "'Cormorant Garamond', serif" }}>~Prima~</p>
         <p className="text-[8px] tracking-[0.2em] opacity-50 mt-1 uppercase">Built for 🫵🏾</p>
       </div>
 
